@@ -13,19 +13,22 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Call RolePermissionSeeder first
+        // Call all seeders
         $this->call([
             RolePermissionSeeder::class,
+            KategoriSeeder::class,
         ]);
 
         // Create admin user
         $adminRole = \App\Models\Role::where('name', 'admin')->first();
         
+        // Membuat user admin dengan password
         User::factory()->create([
             'name' => 'Administrator',
             'username' => 'admin',
             'email' => 'admin@example.com',
             'role_id' => $adminRole->id,
+            'password' => bcrypt('password'), // tambahkan password default
         ]);
     }
 }

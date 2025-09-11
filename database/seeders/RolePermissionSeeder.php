@@ -16,6 +16,8 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_permissions', 'display_name' => 'Kelola Permissions', 'description' => 'Mengelola permissions'],
             ['name' => 'view_dashboard', 'display_name' => 'Lihat Dashboard', 'description' => 'Melihat halaman dashboard'],
             ['name' => 'manage_users', 'display_name' => 'Kelola Users', 'description' => 'Mengelola pengguna'],
+            ['name' => 'manage_layanan', 'display_name' => 'Kelola Layanan', 'description' => 'Mengelola data layanan'],
+            ['name' => 'manage_kategori', 'display_name' => 'Kelola Kategori', 'description' => 'Mengelola kategori layanan'],
         ];
 
         foreach ($permissions as $permission) {
@@ -29,11 +31,6 @@ class RolePermissionSeeder extends Seeder
             'description' => 'Role dengan akses penuh ke sistem'
         ]);
 
-        $librarianRole = Role::create([
-            'name' => 'librarian',
-            'display_name' => 'Pustakawan',
-            'description' => 'Role untuk mengelola perpustakaan'
-        ]);
 
         $userRole = Role::create([
             'name' => 'user',
@@ -43,13 +40,7 @@ class RolePermissionSeeder extends Seeder
 
         // Assign permissions to roles
         $adminRole->permissions()->attach(Permission::all()); // Admin gets all permissions
-        
-        $librarianRole->permissions()->attach(
-            Permission::whereIn('name', [
-                'view_dashboard',
-                'manage_users'
-            ])->get()
-        );
+
         
         $userRole->permissions()->attach(
             Permission::whereIn('name', [

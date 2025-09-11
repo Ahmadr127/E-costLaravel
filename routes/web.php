@@ -6,6 +6,8 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\LayananController;
+use App\Http\Controllers\KategoriController;
 
 /*
 |--------------------------------------------------------------------------
@@ -49,6 +51,17 @@ Route::middleware('auth')->group(function () {
     // Permission Management routes
     Route::middleware('permission:manage_permissions')->group(function () {
         Route::resource('permissions', PermissionController::class);
+    });
+
+    // Kategori Management routes
+    Route::middleware('permission:manage_kategori')->group(function () {
+        Route::resource('kategori', KategoriController::class);
+    });
+
+    // Layanan Management routes
+    Route::middleware('permission:manage_layanan')->group(function () {
+        Route::resource('layanan', LayananController::class);
+        Route::get('layanan-export', [LayananController::class, 'export'])->name('layanan.export');
     });
 
 });

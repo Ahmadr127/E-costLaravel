@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Pagination\Paginator;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -21,5 +22,9 @@ class AppServiceProvider extends ServiceProvider
     {
         // Register custom middleware
         $this->app['router']->aliasMiddleware('permission', \App\Http\Middleware\CheckPermission::class);
+
+        // Use custom Tailwind pagination view
+        Paginator::defaultView('components.pagination');
+        Paginator::defaultSimpleView('components.pagination');
     }
 }

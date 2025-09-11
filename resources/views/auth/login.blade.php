@@ -16,11 +16,11 @@
                 <div class="rounded-2xl border border-[#0f766e]/20 bg-white shadow-md p-3">
                     <img src="{{ asset('images/logo.png') }}" alt="Logo" class="h-12 object-contain" />
                 </div>
-                <p class="mt-3 text-xs font-semibold tracking-wide text-[#006D7A]">Library Management System</p>
+                <p class="mt-3 text-xs font-semibold tracking-wide text-[#006D7A]">Unit Cost System</p>
             </div>
 
             <!-- Title -->
-            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-6">Log in</h1>
+            <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 text-center mb-6">Masuk ke Unit Cost</h1>
 
             <!-- Form -->
             <form action="{{ route('login') }}" method="POST" class="space-y-4">
@@ -35,7 +35,7 @@
                 <div>
                     <div class="flex items-center justify-between">
                         <label for="password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-                        <a href="#" class="text-sm text-[#006D7A] hover:text-[#005F66]">Forgot Password?</a>
+                        <a href="#" class="text-sm text-[#006D7A] hover:text-[#005F66]">Lupa Password?</a>
                     </div>
                     <div class="relative">
                         <input id="password" name="password" type="password" required placeholder="••••••••"
@@ -57,7 +57,7 @@
                 @endif
 
                 <button type="submit" class="w-full rounded-xl bg-gradient-to-r from-[#006D7A] to-[#005F66] text-white font-semibold py-3 shadow-lg hover:shadow-xl transition transform hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-[#006D7A]/30">
-                    Log in
+                    Masuk
                 </button>
             </form>
         </div>
