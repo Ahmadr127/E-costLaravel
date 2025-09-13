@@ -40,7 +40,8 @@
             @csrf
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <x-form-input name="kode" label="Kode" placeholder="Masukkan kode layanan (opsional)" value="{{ old('kode') }}" help="Boleh dikosongkan"></x-form-input>
-                <div>
+                <x-form-input name="jenis_pemeriksaan" label="Jenis Pemeriksaan" placeholder="Masukkan jenis pemeriksaan (opsional)" value="{{ old('jenis_pemeriksaan') }}" help="Boleh dikosongkan"></x-form-input>
+                <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Layanan</label>
                     <div class="flex items-end gap-3" x-data='{
                             q: "",
@@ -161,10 +162,11 @@
     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
         <div class="p-6 border-b border-gray-200">
             <form method="GET" class="space-y-4">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-end">
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 items-end">
                     <div>
                         <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Pencarian</label>
-                        <input type="text" id="search" name="search" value="{{ request('search') }}" placeholder="Cari data..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                        <input type="text" id="search" name="search" value="{{ request('search') }}" placeholder="Cari kode, jenis pemeriksaan, kategori, deskripsi, unit cost, margin, atau tarif..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                        <p class="mt-1 text-xs text-gray-500">Mencari di semua field: kode, jenis pemeriksaan, kategori, deskripsi, unit cost, margin, dan tarif</p>
                     </div>
                     <div>
                         <label for="kategori_id" class="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
@@ -183,19 +185,35 @@
                             <option value="inactive" {{ request('status') == 'inactive' ? 'selected' : '' }}>Tidak Aktif</option>
                         </select>
                     </div>
+                    <div>
+                        <label for="tarif_range" class="block text-sm font-medium text-gray-700 mb-1">Range Tarif</label>
+                        <select name="tarif_range" id="tarif_range" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                            <option value="">Semua Range</option>
+                            <option value="0-50000" {{ request('tarif_range') == '0-50000' ? 'selected' : '' }}>Rp 0 - 50.000</option>
+                            <option value="50000-100000" {{ request('tarif_range') == '50000-100000' ? 'selected' : '' }}>Rp 50.000 - 100.000</option>
+                            <option value="100000-500000" {{ request('tarif_range') == '100000-500000' ? 'selected' : '' }}>Rp 100.000 - 500.000</option>
+                            <option value="500000-1000000" {{ request('tarif_range') == '500000-1000000' ? 'selected' : '' }}>Rp 500.000 - 1.000.000</option>
+                            <option value="1000000+" {{ request('tarif_range') == '1000000+' ? 'selected' : '' }}>Rp 1.000.000+</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="flex flex-wrap gap-3 items-center justify-between">
                     <div class="flex gap-3">
                         <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors">
                             <i class="fas fa-search mr-2"></i>Filter
                         </button>
-                        @if(request()->hasAny(['search','kategori_id','status']))
+                        @if(request()->hasAny(['search','kategori_id','status','tarif_range']))
                         <a href="{{ request()->url() }}" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
                             <i class="fas fa-times mr-2"></i>Reset
                         </a>
                         @endif
                     </div>
-                    <div class="ml-auto">
+                    <div class="ml-auto flex gap-3">
+                        @if(auth()->user()->hasPermission('upload_layanan_excel'))
+                        <a href="{{ route('layanan.upload.form') }}" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                            <i class="fas fa-upload mr-2"></i>Upload Excel
+                        </a>
+                        @endif
                         <a href="{{ route('layanan.export', request()->query()) }}" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 transition-colors">
                             <i class="fas fa-file-excel mr-2"></i>Export Excel
                         </a>
@@ -205,12 +223,13 @@
         </div>
 
         <!-- Table using responsive-table component -->
-        <x-responsive-table :headers="['No','Kode','Layanan','Unit Cost','Margin (%)','Unit Cost * Margin','Tarif','Aksi']" minWidth="980px">
+        <x-responsive-table :headers="['No','Kode','Jenis Pemeriksaan','Kategori','Unit Cost','Margin (%)','Unit Cost * Margin','Tarif','Aksi']" minWidth="1200px">
             @forelse($layanan as $index => $item)
             <tr class="hover:bg-gray-50" x-data="{ openShow:false, openEdit:false }">
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ ($layanan->firstItem() ?? 0) + $index }}</td>
                 
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ $item->kode ?: '-' }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ $item->jenis_pemeriksaan ?: '-' }}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
                     <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{{ $item->kategori->nama_kategori }}</span>
                 </td>
@@ -229,11 +248,15 @@
                     </div>
 
                     <!-- Modal Show -->
-                    <x-modal :title="'Detail Layanan: ' . $item->nama_layanan" show="openShow" maxWidth="2xl">
+                    <x-modal :title="'Detail Layanan: ' . ($item->jenis_pemeriksaan ?: $item->kategori->nama_kategori)" show="openShow" maxWidth="2xl">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <div class="text-sm text-gray-500">Kode</div>
-                                <div class="text-sm font-medium text-gray-900">{{ $item->kode }}</div>
+                                <div class="text-sm font-medium text-gray-900">{{ $item->kode ?: '-' }}</div>
+                            </div>
+                            <div>
+                                <div class="text-sm text-gray-500">Jenis Pemeriksaan</div>
+                                <div class="text-sm font-medium text-gray-900">{{ $item->jenis_pemeriksaan ?: '-' }}</div>
                             </div>
                             <div>
                                 <div class="text-sm text-gray-500">Kategori</div>
@@ -268,7 +291,8 @@
                             @method('PUT')
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <x-form-input name="kode" label="Kode" value="{{ $item->kode }}" help="Boleh dikosongkan"></x-form-input>
-                                <div>
+                                <x-form-input name="jenis_pemeriksaan" label="Jenis Pemeriksaan" value="{{ $item->jenis_pemeriksaan }}" help="Boleh dikosongkan"></x-form-input>
+                                <div class="md:col-span-2">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Layanan</label>
                                     <div class="flex items-end gap-3" x-data='{
                                             q: "{{ e($item->kategori->nama_kategori) }}",
@@ -319,14 +343,14 @@
             </tr>
             @empty
             <tr>
-                <td colspan="10" class="px-6 py-12 text-center text-gray-500">
+                <td colspan="9" class="px-6 py-12 text-center text-gray-500">
                     <div class="flex flex-col items-center"><i class="fas fa-inbox text-4xl text-gray-300 mb-4"></i><p class="text-lg font-medium">Tidak ada data</p><p class="text-sm">Belum ada data yang tersedia</p></div>
                 </td>
             </tr>
             @endforelse
             @if($layanan->count())
             <tr class="bg-gray-50">
-                <td class="px-4 py-3 text-sm font-semibold text-gray-900" colspan="6">Total Tarif (halaman ini)</td>
+                <td class="px-4 py-3 text-sm font-semibold text-gray-900" colspan="7">Total Tarif (halaman ini)</td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm font-extrabold text-gray-900">Rp {{ number_format($layanan->sum('tarif'), 0, ',', '.') }}</td>
                 <td class="px-4 py-3"></td>
             </tr>

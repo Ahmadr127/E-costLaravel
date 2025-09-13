@@ -64,4 +64,10 @@ Route::middleware('auth')->group(function () {
         Route::get('layanan-export', [LayananController::class, 'export'])->name('layanan.export');
     });
 
+    // Excel Upload routes (separate permission)
+    Route::middleware('permission:upload_layanan_excel')->group(function () {
+        Route::get('layanan-upload', [LayananController::class, 'showUploadForm'])->name('layanan.upload.form');
+        Route::post('layanan-upload', [LayananController::class, 'uploadExcel'])->name('layanan.upload');
+    });
+
 });
