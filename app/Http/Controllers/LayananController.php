@@ -33,8 +33,6 @@ class LayananController extends Controller
                   ->orWhere('jenis_pemeriksaan', 'like', "%{$search}%")
                   ->orWhere('deskripsi', 'like', "%{$search}%")
                   ->orWhere('unit_cost', 'like', "%{$search}%")
-                  ->orWhere('margin', 'like', "%{$search}%")
-                  ->orWhere('tarif', 'like', "%{$search}%")
                   ->orWhereHas('kategori', function($kategoriQuery) use ($search) {
                       $kategoriQuery->where('nama_kategori', 'like', "%{$search}%")
                                    ->orWhere('deskripsi', 'like', "%{$search}%");
@@ -47,32 +45,6 @@ class LayananController extends Controller
             $query->where('kategori_id', $request->kategori_id);
         }
 
-        // Status filter
-        if ($request->filled('status')) {
-            $query->where('is_active', $request->status === 'active');
-        }
-
-        // Tarif range filter
-        if ($request->filled('tarif_range')) {
-            $range = $request->tarif_range;
-            switch ($range) {
-                case '0-50000':
-                    $query->whereBetween('tarif', [0, 50000]);
-                    break;
-                case '50000-100000':
-                    $query->whereBetween('tarif', [50000, 100000]);
-                    break;
-                case '100000-500000':
-                    $query->whereBetween('tarif', [100000, 500000]);
-                    break;
-                case '500000-1000000':
-                    $query->whereBetween('tarif', [500000, 1000000]);
-                    break;
-                case '1000000+':
-                    $query->where('tarif', '>', 1000000);
-                    break;
-            }
-        }
 
         $layanan = $query->latest()->paginate(10)->withQueryString();
         $kategori = Kategori::active()->get();
@@ -94,8 +66,6 @@ class LayananController extends Controller
                   ->orWhere('jenis_pemeriksaan', 'like', "%{$search}%")
                   ->orWhere('deskripsi', 'like', "%{$search}%")
                   ->orWhere('unit_cost', 'like', "%{$search}%")
-                  ->orWhere('margin', 'like', "%{$search}%")
-                  ->orWhere('tarif', 'like', "%{$search}%")
                   ->orWhereHas('kategori', function($kategoriQuery) use ($search) {
                       $kategoriQuery->where('nama_kategori', 'like', "%{$search}%")
                                    ->orWhere('deskripsi', 'like', "%{$search}%");
@@ -107,32 +77,6 @@ class LayananController extends Controller
             $query->where('kategori_id', $request->kategori_id);
         }
 
-        if ($request->filled('status')) {
-            $query->where('is_active', $request->status === 'active');
-        }
-
-        // Tarif range filter
-        if ($request->filled('tarif_range')) {
-            $range = $request->tarif_range;
-            switch ($range) {
-                case '0-50000':
-                    $query->whereBetween('tarif', [0, 50000]);
-                    break;
-                case '50000-100000':
-                    $query->whereBetween('tarif', [50000, 100000]);
-                    break;
-                case '100000-500000':
-                    $query->whereBetween('tarif', [100000, 500000]);
-                    break;
-                case '500000-1000000':
-                    $query->whereBetween('tarif', [500000, 1000000]);
-                    break;
-                case '1000000+':
-                    $query->where('tarif', '>', 1000000);
-                    break;
-            }
-        }
-
         $filename = 'layanan_' . now()->format('Ymd_His') . '.csv';
 
         return response()->streamDownload(function () use ($query) {
@@ -142,36 +86,32 @@ class LayananController extends Controller
 
             // Headers
             fputcsv($handle, [
-                'No', 'Tindakan', 'unit cost', 'margin', 'unit cost * margin', 'Tarif', '%'
+                'No', 'Kode', 'Jenis Pemeriksaan', 'Kategori', 'Unit Cost', 'Deskripsi'
             ]);
 
             $counter = 0;
-            $totalTarif = 0;
+            $totalUnitCost = 0;
 
-            $query->orderByDesc('id')->chunk(500, function ($rows) use (&$counter, &$totalTarif, $handle) {
+            $query->orderByDesc('id')->chunk(500, function ($rows) use (&$counter, &$totalUnitCost, $handle) {
                 foreach ($rows as $row) {
                     $counter++;
                     $unitCost = (float) $row->unit_cost;
-                    $margin = (float) $row->margin;
-                    $ucTimesMargin = $unitCost * ($margin / 100);
-                    $tarif = (float) $row->tarif;
-                    $totalTarif += $tarif;
+                    $totalUnitCost += $unitCost;
 
                     fputcsv($handle, [
                         $counter,
+                        $row->kode ?: '-',
+                        $row->jenis_pemeriksaan ?: '-',
                         optional($row->kategori)->nama_kategori,
                         number_format($unitCost, 2, '.', ''),
-                        number_format($margin, 2, '.', ''),
-                        number_format($ucTimesMargin, 2, '.', ''),
-                        number_format($tarif, 2, '.', ''),
-                        rtrim(rtrim(number_format($margin, 2, '.', ''), '0'), '.') . '%',
+                        $row->deskripsi ?: '-',
                     ]);
                 }
             });
 
             // Total row
             fputcsv($handle, []);
-            fputcsv($handle, ['', 'Total', '', '', '', number_format($totalTarif, 2, '.', ''), '']);
+            fputcsv($handle, ['', 'Total', '', '', number_format($totalUnitCost, 2, '.', ''), '']);
 
             fclose($handle);
         }, $filename, [
@@ -198,8 +138,6 @@ class LayananController extends Controller
             'jenis_pemeriksaan' => 'nullable|string|max:255',
             'kategori_id' => 'required|exists:kategori,id',
             'unit_cost' => 'required|numeric|min:0',
-            'margin' => 'required|numeric|min:0|max:100',
-            'tarif' => 'required|numeric|min:0',
             'deskripsi' => 'nullable|string',
             'is_active' => 'boolean'
         ]);
@@ -213,8 +151,6 @@ class LayananController extends Controller
             'jenis_pemeriksaan' => $request->jenis_pemeriksaan,
             'kategori_id' => $request->kategori_id,
             'unit_cost' => $request->unit_cost,
-            'margin' => $request->margin,
-            'tarif' => $request->tarif,
             'deskripsi' => $request->deskripsi,
             'is_active' => $request->has('is_active')
         ]);
@@ -250,8 +186,6 @@ class LayananController extends Controller
             'jenis_pemeriksaan' => 'nullable|string|max:255',
             'kategori_id' => 'required|exists:kategori,id',
             'unit_cost' => 'required|numeric|min:0',
-            'margin' => 'required|numeric|min:0|max:100',
-            'tarif' => 'required|numeric|min:0',
             'deskripsi' => 'nullable|string',
             'is_active' => 'boolean'
         ]);
@@ -265,8 +199,6 @@ class LayananController extends Controller
             'jenis_pemeriksaan' => $request->jenis_pemeriksaan,
             'kategori_id' => $request->kategori_id,
             'unit_cost' => $request->unit_cost,
-            'margin' => $request->margin,
-            'tarif' => $request->tarif,
             'deskripsi' => $request->deskripsi,
             'is_active' => $request->has('is_active')
         ]);
@@ -350,6 +282,65 @@ class LayananController extends Controller
             ]);
             
             return redirect()->back()->with('error', 'Terjadi kesalahan saat mengimpor file: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Clear all layanan data with confirmation.
+     */
+    public function clearAll(Request $request)
+    {
+        // Check if user has permission to clear all data
+        if (!auth()->user()->hasPermission('manage_layanan')) {
+            return redirect()->back()->with('error', 'Anda tidak memiliki izin untuk menghapus semua data layanan.');
+        }
+
+        // Validate confirmation
+        $validator = Validator::make($request->all(), [
+            'confirmation' => 'required|in:DELETE_ALL_LAYANAN'
+        ]);
+
+        if ($validator->fails()) {
+            return redirect()->back()->with('error', 'Konfirmasi tidak valid. Silakan coba lagi.');
+        }
+
+        try {
+            // Count total records before deletion
+            $totalRecords = Layanan::count();
+            
+            if ($totalRecords === 0) {
+                return redirect()->back()->with('info', 'Tidak ada data layanan yang perlu dihapus.');
+            }
+
+            // Log the action
+            \Log::info('Clearing all layanan data:', [
+                'user_id' => auth()->id(),
+                'user_name' => auth()->user()->name,
+                'total_records' => $totalRecords,
+                'ip_address' => $request->ip()
+            ]);
+
+            // Delete all layanan records
+            Layanan::truncate();
+
+            \Log::info('All layanan data cleared successfully', [
+                'deleted_records' => $totalRecords,
+                'user_id' => auth()->id()
+            ]);
+
+            return redirect()->route('layanan.index')->with('success', 
+                "Semua data layanan telah berhasil dihapus. Total {$totalRecords} record telah dihapus."
+            );
+
+        } catch (\Exception $e) {
+            \Log::error('Error clearing all layanan data:', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'user_id' => auth()->id()
+            ]);
+            
+            return redirect()->back()->with('error', 'Terjadi kesalahan saat menghapus data: ' . $e->getMessage());
         }
     }
 }
@@ -521,8 +512,6 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError
             'jenis_pemeriksaan' => $jenisPemeriksaan,
             'kategori_id' => $defaultKategori->id,
             'unit_cost' => $unitCost,
-            'margin' => 0, // Default margin
-            'tarif' => $unitCost, // Default tarif same as unit_cost
             'is_active' => true
         ]);
     }

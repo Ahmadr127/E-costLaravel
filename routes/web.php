@@ -62,6 +62,7 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:manage_layanan')->group(function () {
         Route::resource('layanan', LayananController::class);
         Route::get('layanan-export', [LayananController::class, 'export'])->name('layanan.export');
+        Route::post('layanan-clear-all', [LayananController::class, 'clearAll'])->name('layanan.clear-all');
     });
 
     // Excel Upload routes (separate permission)

@@ -16,16 +16,12 @@ class Layanan extends Model
         'jenis_pemeriksaan',
         'kategori_id',
         'unit_cost',
-        'margin',
-        'tarif',
         'deskripsi',
         'is_active'
     ];
 
     protected $casts = [
         'unit_cost' => 'decimal:2',
-        'margin' => 'decimal:2',
-        'tarif' => 'decimal:2',
         'is_active' => 'boolean'
     ];
 
@@ -39,11 +35,6 @@ class Layanan extends Model
         return $query->where('is_active', true);
     }
 
-    // Accessor untuk menghitung tarif otomatis
-    public function getCalculatedTarifAttribute()
-    {
-        return $this->unit_cost * (1 + ($this->margin / 100));
-    }
 
     // Mutator untuk auto-generate kode
     public function setKodeAttribute($value)
