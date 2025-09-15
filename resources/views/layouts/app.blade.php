@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Unit Cost')</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="icon" type="image/x-icon" href="images/logo.png">
@@ -81,6 +82,15 @@
                         <a href="{{ route('layanan.index') }}" title="Layanan" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('layanan.*') ? 'bg-green-800' : '' }}">
                             <i class="fas fa-stethoscope w-5 text-center" :class="sidebarCollapsed ? 'mr-0' : 'mr-3'"></i>
                             <span x-show="!sidebarCollapsed" x-transition.opacity.duration.150>Layanan</span>
+                        </a>
+                    </li>
+                    @endif
+
+                    @if(auth()->user()->hasPermission('access_simulation'))
+                    <li>
+                        <a href="{{ route('simulation.index') }}" title="Simulasi" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('simulation.*') ? 'bg-green-800' : '' }}">
+                            <i class="fas fa-calculator w-5 text-center" :class="sidebarCollapsed ? 'mr-0' : 'mr-3'"></i>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity.duration.150>Simulasi</span>
                         </a>
                     </li>
                     @endif

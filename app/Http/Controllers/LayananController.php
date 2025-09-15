@@ -444,55 +444,17 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError
         $jenisPemeriksaan = isset($row[$this->columnMapping['jenis_pemeriksaan']]) ? trim($row[$this->columnMapping['jenis_pemeriksaan']]) : '';
         $unitCost = isset($row[$this->columnMapping['unit_cost']]) ? $this->parseUnitCost($row[$this->columnMapping['unit_cost']]) : null;
         
-        // Skip rows that don't have required fields (kode dan unit_cost wajib)
-        if (empty($kode) || $unitCost === null) {
+        // Validasi minimal: hanya kode dan jenis_pemeriksaan yang wajib
+        if (empty($kode) || empty($jenisPemeriksaan)) {
             \Log::info("Skipping row {$this->currentRow} - missing required fields:", [
                 'kode' => $kode, 
-                'unit_cost' => $unitCost,
-                'raw_data' => $row
+                'jenis_pemeriksaan' => $jenisPemeriksaan
             ]);
             $this->skippedCount++;
             return null;
         }
 
-        // Skip rows with invalid kode format (hanya angka atau terlalu pendek)
-        if (is_numeric($kode) || strlen($kode) < 3) {
-            \Log::info("Skipping row {$this->currentRow} - invalid kode format:", [
-                'kode' => $kode,
-                'raw_data' => $row
-            ]);
-            $this->skippedCount++;
-            return null;
-        }
-
-        // Skip rows with invalid jenis pemeriksaan (hanya angka atau terlalu pendek)
-        if (is_numeric($jenisPemeriksaan) || strlen($jenisPemeriksaan) < 3) {
-            \Log::info("Skipping row {$this->currentRow} - invalid jenis pemeriksaan format:", [
-                'jenis_pemeriksaan' => $jenisPemeriksaan,
-                'raw_data' => $row
-            ]);
-            $this->skippedCount++;
-            return null;
-        }
-
-        // Skip if kode is empty or unit_cost is invalid
-        if (empty($kode) || $unitCost === null) {
-            \Log::info("Skipping row {$this->currentRow} - invalid data after cleaning:", [
-                'kode' => $kode, 
-                'unit_cost' => $unitCost
-            ]);
-            $this->skippedCount++;
-            return null;
-        }
-
-        // Check if kode already exists
-        if (Layanan::where('kode', $kode)->exists()) {
-            \Log::info("Skipping row {$this->currentRow} - kode already exists:", ['kode' => $kode]);
-            $this->skippedCount++;
-            return null;
-        }
-
-        // Get default kategori (you might want to modify this logic)
+        // Get default kategori
         $defaultKategori = Kategori::first();
         if (!$defaultKategori) {
             \Log::error('No kategori found - cannot import data');
@@ -511,7 +473,7 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError
             'kode' => $kode,
             'jenis_pemeriksaan' => $jenisPemeriksaan,
             'kategori_id' => $defaultKategori->id,
-            'unit_cost' => $unitCost,
+            'unit_cost' => $unitCost ?: 0, // Default value 0 jika unit_cost kosong
             'is_active' => true
         ]);
     }

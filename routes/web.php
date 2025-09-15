@@ -8,6 +8,7 @@ use App\Http\Controllers\RoleController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\LayananController;
 use App\Http\Controllers\KategoriController;
+use App\Http\Controllers\SimulationController;
 
 /*
 |--------------------------------------------------------------------------
@@ -69,6 +70,13 @@ Route::middleware('auth')->group(function () {
     Route::middleware('permission:upload_layanan_excel')->group(function () {
         Route::get('layanan-upload', [LayananController::class, 'showUploadForm'])->name('layanan.upload.form');
         Route::post('layanan-upload', [LayananController::class, 'uploadExcel'])->name('layanan.upload');
+    });
+
+    // Simulation routes
+    Route::middleware('permission:access_simulation')->group(function () {
+        Route::get('simulation', [SimulationController::class, 'index'])->name('simulation.index');
+        Route::get('simulation/search', [SimulationController::class, 'search'])->name('simulation.search');
+        Route::get('simulation/layanan', [SimulationController::class, 'getLayanan'])->name('simulation.layanan');
     });
 
 });
