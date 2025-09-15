@@ -41,6 +41,7 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <x-form-input name="kode" label="Kode" placeholder="Masukkan kode layanan (opsional)" value="{{ old('kode') }}" help="Boleh dikosongkan"></x-form-input>
                 <x-form-input name="jenis_pemeriksaan" label="Jenis Pemeriksaan" placeholder="Masukkan jenis pemeriksaan (opsional)" value="{{ old('jenis_pemeriksaan') }}" help="Boleh dikosongkan"></x-form-input>
+                <x-form-input name="tarif_master" label="Tarif Master (II/IGD/POLI)" placeholder="Contoh: II / IGD / POLI" value="{{ old('tarif_master') }}" help="Opsional"></x-form-input>
                 <div class="md:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Layanan</label>
                     <div class="flex items-end gap-3" x-data='{
@@ -186,13 +187,14 @@
         </div>
 
         <!-- Table using responsive-table component -->
-        <x-responsive-table :headers="['No','Kode','Jenis Pemeriksaan','Unit Cost','Aksi']" minWidth="1000px">
+        <x-responsive-table :headers="['No','Kode','Jenis Pemeriksaan','Tarif Master','Unit Cost','Aksi']" minWidth="1000px">
             @forelse($layanan as $index => $item)
             <tr class="hover:bg-gray-50" x-data="{ openEdit:false }">
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ ($layanan->firstItem() ?? 0) + $index }}</td>
                 
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ $item->kode ?: '-' }}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ $item->jenis_pemeriksaan ?: '-' }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ is_numeric($item->tarif_master) ? ('Rp ' . number_format((float)$item->tarif_master, 0, ',', '.')) : ($item->tarif_master ?: '-') }}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">Rp {{ number_format($item->unit_cost, 0, ',', '.') }}</td>
                 
                 <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
@@ -212,6 +214,7 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <x-form-input name="kode" label="Kode" value="{{ $item->kode }}" help="Boleh dikosongkan"></x-form-input>
                                 <x-form-input name="jenis_pemeriksaan" label="Jenis Pemeriksaan" value="{{ $item->jenis_pemeriksaan }}" help="Boleh dikosongkan"></x-form-input>
+                                <x-form-input name="tarif_master" label="Tarif Master (II/IGD/POLI)" value="{{ $item->tarif_master }}" help="Opsional"></x-form-input>
                                 <div class="md:col-span-2">
                                     <label class="block text-sm font-medium text-gray-700 mb-1">Layanan</label>
                                     <div class="flex items-end gap-3" x-data='{
@@ -266,7 +269,7 @@
             @endforelse
             @if($layanan->count())
             <tr class="bg-gray-50">
-                <td class="px-4 py-3 text-sm font-semibold text-gray-900" colspan="3">Total Unit Cost (halaman ini)</td>
+                <td class="px-4 py-3 text-sm font-semibold text-gray-900" colspan="4">Total Unit Cost (halaman ini)</td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm font-extrabold text-gray-900">Rp {{ number_format($layanan->sum('unit_cost'), 0, ',', '.') }}</td>
                 <td class="px-4 py-3"></td>
             </tr>

@@ -60,6 +60,7 @@
                             <div class="flex justify-between items-center">
                                 <div class="flex-1 min-w-0">
                                     <p class="text-xs font-medium text-gray-900 truncate" x-text="result.kode + ' - ' + result.jenis_pemeriksaan"></p>
+                                    <p class="text-[10px] text-gray-500" x-text="result.tarif_master ? ('Tarif: ' + result.tarif_master) : ''"></p>
                                 </div>
                                 <div class="text-right ml-2 flex-shrink-0">
                                     <p class="text-xs font-semibold text-green-600" x-text="'Rp ' + formatNumber(result.unit_cost)"></p>
@@ -118,6 +119,7 @@
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kode</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jenis Pemeriksaan</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarif Master</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Margin (%)</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nilai Margin (Rp)</th>
@@ -133,7 +135,12 @@
                             </td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="index + 1"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs font-medium text-gray-900" x-text="result.kode"></td>
-                            <td class="px-3 py-2 text-xs text-gray-900 max-w-xs truncate" x-text="result.jenis_pemeriksaan"></td>
+                            <td class="px-3 py-2 text-xs text-gray-900 max-w-xs truncate">
+                                <div class="flex flex-col">
+                                    <span x-text="result.jenis_pemeriksaan"></span>
+                                </div>
+                            </td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="'Rp ' + formatNumber(result.tarif_master || 0)"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="'Rp ' + formatNumber(result.unit_cost)"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900">
                                 <div class="flex items-center gap-1">
@@ -160,6 +167,7 @@
                         <td class="px-3 py-2 text-xs text-gray-500"></td>
                         <td class="px-3 py-2 text-xs text-gray-500"></td>
                         <td class="px-3 py-2 text-right text-xs font-semibold text-gray-900">Total:</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-xs font-semibold text-gray-900" x-text="'Rp ' + formatNumber(sumTarifMaster)"></td>
                         <td class="px-3 py-2 whitespace-nowrap text-xs font-semibold text-gray-900" x-text="'Rp ' + formatNumber(sumUnitCost)"></td>
                         <td class="px-3 py-2 text-xs text-gray-500"></td>
                         <td class="px-3 py-2 text-xs text-gray-500"></td>
@@ -202,6 +210,7 @@ function simulationApp() {
         simulationResults: [],
         grandTotal: 0,
         sumUnitCost: 0,
+        sumTarifMaster: 0,
         searchTimeout: null,
         isSearching: false,
         showDropdown: false,
@@ -268,13 +277,17 @@ function simulationApp() {
                 this.showNotification('Layanan ini sudah ada dalam simulasi', 'warning');
                 return;
             } else {
-                // Add new item with margin calculations
+                // Add new item with integer normalization and margin calculations
                 const appliedMarginFraction = Math.max(0, Math.min(100, Number(this.globalMarginPercent))) / 100;
-                const marginValue = Math.round(layanan.unit_cost * appliedMarginFraction);
-                const totalTarif = layanan.unit_cost + marginValue;
+                const unitCostValue = Math.round(Number(layanan.unit_cost) || 0);
+                const tarifMasterValue = Math.round(Number(layanan.tarif_master) || 0);
+                const marginValue = Math.round(unitCostValue * appliedMarginFraction);
+                const totalTarif = unitCostValue + marginValue;
                 
                 this.simulationResults.push({
                     ...layanan,
+                    unit_cost: unitCostValue,
+                    tarif_master: tarifMasterValue,
                     marginPercentage: appliedMarginFraction,
                     marginValue: marginValue,
                     totalTarif: totalTarif,
@@ -301,8 +314,10 @@ function simulationApp() {
         },
 
         recalcItem(item) {
-            item.marginValue = Math.round(item.unit_cost * item.marginPercentage);
-            item.totalTarif = item.unit_cost + item.marginValue;
+            const unitCostValue = Math.round(Number(item.unit_cost) || 0);
+            item.unit_cost = unitCostValue;
+            item.marginValue = Math.round(unitCostValue * (Number(item.marginPercentage) || 0));
+            item.totalTarif = unitCostValue + item.marginValue;
         },
 
         recalcAll() {
@@ -363,8 +378,9 @@ function simulationApp() {
         },
 
         updateGrandTotal() {
-            this.grandTotal = this.simulationResults.reduce((sum, item) => sum + item.totalTarif, 0);
-            this.sumUnitCost = this.simulationResults.reduce((sum, item) => sum + item.unit_cost, 0);
+            this.grandTotal = this.simulationResults.reduce((sum, item) => sum + (Math.round(Number(item.totalTarif) || 0)), 0);
+            this.sumUnitCost = this.simulationResults.reduce((sum, item) => sum + (Math.round(Number(item.unit_cost) || 0)), 0);
+            this.sumTarifMaster = this.simulationResults.reduce((sum, item) => sum + (Math.round(Number(item.tarif_master) || 0)), 0);
         },
 
         toggleSelectAll(checked) {
@@ -385,7 +401,8 @@ function simulationApp() {
         },
 
         formatNumber(number) {
-            return new Intl.NumberFormat('id-ID').format(number);
+            const n = Math.round(Number(number) || 0);
+            return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
         },
 
         exportResults() {
@@ -395,10 +412,11 @@ function simulationApp() {
                 'No': index + 1,
                 'Kode': item.kode,
                 'Jenis Pemeriksaan': item.jenis_pemeriksaan,
-                'Unit Cost': item.unit_cost,
+                'Tarif Master': Math.round(Number(item.tarif_master) || 0),
+                'Unit Cost': Math.round(Number(item.unit_cost) || 0),
                 'Margin (%)': (item.marginPercentage * 100).toFixed(2) + '%',
-                'Nilai Margin (Rp)': item.marginValue,
-                'Tarif (Unit Cost + Margin)': item.totalTarif
+                'Nilai Margin (Rp)': Math.round(Number(item.marginValue) || 0),
+                'Tarif (Unit Cost + Margin)': Math.round(Number(item.totalTarif) || 0)
             }));
 
             const csv = this.convertToCSV(data);

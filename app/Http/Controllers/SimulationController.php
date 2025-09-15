@@ -41,6 +41,7 @@ class SimulationController extends Controller
                     'id' => $item->id,
                     'kode' => $item->kode,
                     'jenis_pemeriksaan' => $item->jenis_pemeriksaan,
+                    'tarif_master' => $item->tarif_master,
                     'unit_cost' => $item->unit_cost,
                     'kategori' => $item->kategori->nama_kategori ?? '-'
                 ];

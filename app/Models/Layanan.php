@@ -14,6 +14,7 @@ class Layanan extends Model
     protected $fillable = [
         'kode',
         'jenis_pemeriksaan',
+        'tarif_master',
         'kategori_id',
         'unit_cost',
         'deskripsi',

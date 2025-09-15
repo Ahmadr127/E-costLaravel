@@ -133,6 +133,10 @@
                             </li>
                             <li class="flex items-center text-sm text-gray-600">
                                 <i class="fas fa-check text-green-500 mr-2"></i>
+                                Kolom <strong>Tarif Master</strong> (II / IGD / POLI) - opsional
+                            </li>
+                            <li class="flex items-center text-sm text-gray-600">
+                                <i class="fas fa-check text-green-500 mr-2"></i>
                                 Kolom <strong>Unit Cost</strong>
                             </li>
                         </ul>

@@ -15,6 +15,7 @@ use Maatwebsite\Excel\Concerns\Importable;
 use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
 use Maatwebsite\Excel\Concerns\SkipsOnError;
 use Maatwebsite\Excel\Concerns\SkipsErrors;
+use Maatwebsite\Excel\Concerns\WithCalculatedFormulas;
 
 class LayananController extends Controller
 {
@@ -31,6 +32,7 @@ class LayananController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('kode', 'like', "%{$search}%")
                   ->orWhere('jenis_pemeriksaan', 'like', "%{$search}%")
+                  ->orWhere('tarif_master', 'like', "%{$search}%")
                   ->orWhere('deskripsi', 'like', "%{$search}%")
                   ->orWhere('unit_cost', 'like', "%{$search}%")
                   ->orWhereHas('kategori', function($kategoriQuery) use ($search) {
@@ -86,7 +88,7 @@ class LayananController extends Controller
 
             // Headers
             fputcsv($handle, [
-                'No', 'Kode', 'Jenis Pemeriksaan', 'Kategori', 'Unit Cost', 'Deskripsi'
+                'No', 'Kode', 'Jenis Pemeriksaan', 'Tarif Master', 'Kategori', 'Unit Cost', 'Deskripsi'
             ]);
 
             $counter = 0;
@@ -102,6 +104,7 @@ class LayananController extends Controller
                         $counter,
                         $row->kode ?: '-',
                         $row->jenis_pemeriksaan ?: '-',
+                        $row->tarif_master ?: '-',
                         optional($row->kategori)->nama_kategori,
                         number_format($unitCost, 2, '.', ''),
                         $row->deskripsi ?: '-',
@@ -111,7 +114,7 @@ class LayananController extends Controller
 
             // Total row
             fputcsv($handle, []);
-            fputcsv($handle, ['', 'Total', '', '', number_format($totalUnitCost, 2, '.', ''), '']);
+            fputcsv($handle, ['', 'Total', '', '', '', number_format($totalUnitCost, 2, '.', ''), '']);
 
             fclose($handle);
         }, $filename, [
@@ -136,6 +139,7 @@ class LayananController extends Controller
         $validator = Validator::make($request->all(), [
             'kode' => 'nullable|string|max:255|unique:layanan',
             'jenis_pemeriksaan' => 'nullable|string|max:255',
+            'tarif_master' => 'nullable|string|max:20',
             'kategori_id' => 'required|exists:kategori,id',
             'unit_cost' => 'required|numeric|min:0',
             'deskripsi' => 'nullable|string',
@@ -149,6 +153,7 @@ class LayananController extends Controller
         Layanan::create([
             'kode' => $request->kode,
             'jenis_pemeriksaan' => $request->jenis_pemeriksaan,
+            'tarif_master' => $request->tarif_master,
             'kategori_id' => $request->kategori_id,
             'unit_cost' => $request->unit_cost,
             'deskripsi' => $request->deskripsi,
@@ -184,6 +189,7 @@ class LayananController extends Controller
         $validator = Validator::make($request->all(), [
             'kode' => 'nullable|string|max:255|unique:layanan,kode,' . $layanan->id,
             'jenis_pemeriksaan' => 'nullable|string|max:255',
+            'tarif_master' => 'nullable|string|max:20',
             'kategori_id' => 'required|exists:kategori,id',
             'unit_cost' => 'required|numeric|min:0',
             'deskripsi' => 'nullable|string',
@@ -197,6 +203,7 @@ class LayananController extends Controller
         $layanan->update([
             'kode' => $request->kode,
             'jenis_pemeriksaan' => $request->jenis_pemeriksaan,
+            'tarif_master' => $request->tarif_master,
             'kategori_id' => $request->kategori_id,
             'unit_cost' => $request->unit_cost,
             'deskripsi' => $request->deskripsi,
@@ -348,7 +355,7 @@ class LayananController extends Controller
 /**
  * Excel Import Class for Layanan
  */
-class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError
+class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithCalculatedFormulas
 {
     use Importable, SkipsErrors;
 
@@ -372,6 +379,7 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError
             'kode' => ['kode', 'code', 'id', 'no'],
             'jenis_pemeriksaan' => ['jenis', 'pemeriksaan', 'nama', 'tindakan', 'layanan'],
             'unit_cost' => ['unit cost', 'unitcost', 'cost', 'biaya', 'harga'],
+            'tarif_master' => ['tarif master', 'ii', 'igd', 'poli'] ,
             'margin' => ['margin', 'keuntungan', 'profit'],
             'tarif' => ['tarif', 'harga', 'price', 'fee']
         ];
@@ -415,13 +423,17 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError
         if (empty($columnMapping['unit_cost'])) {
             $columnMapping['unit_cost'] = 6; // Default ke kolom G
         }
+        if (!isset($columnMapping['tarif_master'])) {
+            // default none
+        }
 
         $this->columnMapping = $columnMapping;
         
-        // Tentukan baris data dimulai (cari baris pertama yang memiliki kode valid)
-        for ($row = 4; $row <= 10; $row++) {
-            $kodeValue = $worksheet->getCell(chr(ord('A') + $columnMapping['kode']) . $row)->getValue();
-            if ($kodeValue && !is_numeric($kodeValue) && strlen(trim($kodeValue)) >= 3) {
+        // Tentukan baris data dimulai (cari baris pertama yang memiliki data di salah satu kolom kunci)
+        for ($row = 4; $row <= 15; $row++) {
+            $kodeCell = $worksheet->getCell(chr(ord('A') + $columnMapping['kode']) . $row)->getValue();
+            $jenisCell = $worksheet->getCell(chr(ord('A') + $columnMapping['jenis_pemeriksaan']) . $row)->getValue();
+            if ((isset($kodeCell) && trim((string)$kodeCell) !== '') || (isset($jenisCell) && trim((string)$jenisCell) !== '')) {
                 $this->dataStartRow = $row;
                 \Log::info("Data start row detected: {$row}");
                 break;
@@ -443,9 +455,10 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError
         $kode = isset($row[$this->columnMapping['kode']]) ? trim($row[$this->columnMapping['kode']]) : '';
         $jenisPemeriksaan = isset($row[$this->columnMapping['jenis_pemeriksaan']]) ? trim($row[$this->columnMapping['jenis_pemeriksaan']]) : '';
         $unitCost = isset($row[$this->columnMapping['unit_cost']]) ? $this->parseUnitCost($row[$this->columnMapping['unit_cost']]) : null;
+        $tarifMaster = isset($this->columnMapping['tarif_master']) && isset($row[$this->columnMapping['tarif_master']]) ? $this->normalizeTarifMaster(trim((string)$row[$this->columnMapping['tarif_master']])) : null;
         
-        // Validasi minimal: hanya kode dan jenis_pemeriksaan yang wajib
-        if (empty($kode) || empty($jenisPemeriksaan)) {
+        // Validasi minimal: wajib ada minimal salah satu antara kode atau jenis pemeriksaan, dan unit_cost boleh 0
+        if (empty($kode) && empty($jenisPemeriksaan)) {
             \Log::info("Skipping row {$this->currentRow} - missing required fields:", [
                 'kode' => $kode, 
                 'jenis_pemeriksaan' => $jenisPemeriksaan
@@ -457,9 +470,12 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError
         // Get default kategori
         $defaultKategori = Kategori::first();
         if (!$defaultKategori) {
-            \Log::error('No kategori found - cannot import data');
-            $this->skippedCount++;
-            return null;
+            \Log::warning('No kategori found - creating default kategori for import');
+            $defaultKategori = Kategori::create([
+                'nama_kategori' => 'Default',
+                'deskripsi' => 'Dibuat otomatis saat import',
+                'is_active' => true,
+            ]);
         }
 
         $this->importedCount++;
@@ -472,6 +488,7 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError
         return new Layanan([
             'kode' => $kode,
             'jenis_pemeriksaan' => $jenisPemeriksaan,
+            'tarif_master' => $tarifMaster,
             'kategori_id' => $defaultKategori->id,
             'unit_cost' => $unitCost ?: 0, // Default value 0 jika unit_cost kosong
             'is_active' => true
@@ -526,5 +543,21 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError
     public function getSkippedCount()
     {
         return $this->skippedCount;
+    }
+
+    private function normalizeTarifMaster(?string $value): ?string
+    {
+        if ($value === null) return null;
+        $v = strtolower(trim($value));
+        if ($v === '') return null;
+        // Map common variants
+        if (in_array($v, ['ii', 'instalasi inap', 'rawat inap'])) return 'II';
+        if (in_array($v, ['igd', 'gawat darurat'])) return 'IGD';
+        if (in_array($v, ['poli', 'poliklinik', 'rawat jalan'])) return 'POLI';
+        // Try to extract II/IGD/POLI substrings
+        if (strpos($v, 'igd') !== false) return 'IGD';
+        if (strpos($v, 'poli') !== false) return 'POLI';
+        if (strpos($v, 'ii') !== false) return 'II';
+        return strtoupper($value);
     }
 }
