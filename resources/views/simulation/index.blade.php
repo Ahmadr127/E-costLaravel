@@ -89,29 +89,58 @@
         <div class="p-3 border-b border-gray-200">
             <h2 class="text-base font-semibold text-gray-900">Hasil Simulasi</h2>
         </div>
+        <!-- Bulk Margin Controls -->
+        <div class="p-3 border-b border-gray-200 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-end gap-2">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Margin Global (%)</label>
+                    <div class="flex items-center">
+                        <input type="number" min="0" max="100" step="0.01" x-model.number="globalMarginPercent" class="w-28 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+                    </div>
+                </div>
+                <button type="button" class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-2.5 py-1.5 text-xs bg-green-600 text-white hover:bg-green-700 focus:ring-green-500" @click="applyGlobalMarginToAll()">
+                    <i class="fas fa-percent mr-1"></i> Terapkan ke Semua
+                </button>
+                <button type="button" class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-2.5 py-1.5 text-xs bg-amber-600 text-white hover:bg-amber-700 focus:ring-amber-500" @click="applyGlobalMarginToSelected()" x-bind:disabled="selectedCount === 0">
+                    <i class="fas fa-list-check mr-1"></i> Terapkan ke Terpilih (<span x-text="selectedCount"></span>)
+                </button>
+            </div>
+            <div class="flex items-center gap-2 text-xs text-gray-600"></div>
+        </div>
         
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200">
                 <thead class="bg-gray-50">
                     <tr>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            <input type="checkbox" class="rounded border-gray-300" :checked="selectAll" @change="toggleSelectAll($event.target.checked)">
+                        </th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kode</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jenis Pemeriksaan</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Margin (%)</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Nilai Margin (Rp)</th>
-                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarif (Unit Cost + Margin)</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarif</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                     </tr>
                 </thead>
                 <tbody class="bg-white divide-y divide-gray-200">
                     <template x-for="(result, index) in simulationResults" :key="result.id">
                         <tr class="hover:bg-gray-50">
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900">
+                                <input type="checkbox" class="rounded border-gray-300" x-model="result.selected" @change="updateSelectedCount()">
+                            </td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="index + 1"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs font-medium text-gray-900" x-text="result.kode"></td>
                             <td class="px-3 py-2 text-xs text-gray-900 max-w-xs truncate" x-text="result.jenis_pemeriksaan"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="'Rp ' + formatNumber(result.unit_cost)"></td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="(result.marginPercentage * 100) + '%'"></td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900">
+                                <div class="flex items-center gap-1">
+                                    <input type="number" min="0" max="100" step="0.01" class="w-20 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" :value="(result.marginPercentage * 100).toFixed(2)" @input="onRowMarginChange(result, $event.target.value)">
+                                    <span class="text-gray-400">%</span>
+                                </div>
+                            </td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="'Rp ' + formatNumber(result.marginValue)"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs font-semibold text-red-600" x-text="'Rp ' + formatNumber(result.totalTarif)"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">
@@ -125,6 +154,19 @@
                         </tr>
                     </template>
                 </tbody>
+                <tfoot class="bg-gray-50">
+                    <tr>
+                        <td class="px-3 py-2 text-xs text-gray-500"></td>
+                        <td class="px-3 py-2 text-xs text-gray-500"></td>
+                        <td class="px-3 py-2 text-xs text-gray-500"></td>
+                        <td class="px-3 py-2 text-right text-xs font-semibold text-gray-900">Total:</td>
+                        <td class="px-3 py-2 whitespace-nowrap text-xs font-semibold text-gray-900" x-text="'Rp ' + formatNumber(sumUnitCost)"></td>
+                        <td class="px-3 py-2 text-xs text-gray-500"></td>
+                        <td class="px-3 py-2 text-xs text-gray-500"></td>
+                        <td class="px-3 py-2 whitespace-nowrap text-xs font-semibold text-red-600" x-text="'Rp ' + formatNumber(grandTotal)"></td>
+                        <td class="px-3 py-2 text-xs text-gray-500"></td>
+                    </tr>
+                </tfoot>
             </table>
         </div>
         
@@ -159,10 +201,14 @@ function simulationApp() {
         searchResults: [],
         simulationResults: [],
         grandTotal: 0,
+        sumUnitCost: 0,
         searchTimeout: null,
         isSearching: false,
         showDropdown: false,
         marginPercentage: 0.10, // Default 10% margin
+        globalMarginPercent: 10,
+        selectAll: false,
+        selectedCount: 0,
 
         async searchLayanan(query) {
             console.log('searchLayanan called with:', query);
@@ -223,26 +269,66 @@ function simulationApp() {
                 return;
             } else {
                 // Add new item with margin calculations
-                const marginValue = layanan.unit_cost * this.marginPercentage;
+                const appliedMarginFraction = Math.max(0, Math.min(100, Number(this.globalMarginPercent))) / 100;
+                const marginValue = Math.round(layanan.unit_cost * appliedMarginFraction);
                 const totalTarif = layanan.unit_cost + marginValue;
                 
                 this.simulationResults.push({
                     ...layanan,
-                    marginPercentage: this.marginPercentage,
+                    marginPercentage: appliedMarginFraction,
                     marginValue: marginValue,
-                    totalTarif: totalTarif
+                    totalTarif: totalTarif,
+                    selected: false
                 });
                 
                 // Clear search results and close dropdown after adding
                 this.searchResults = [];
                 this.searchQuery = '';
-                this.showDropdown = false;
+                this.showDropdown = false;  
                 
                 // Show success notification
                 this.showNotification('Layanan berhasil ditambahkan ke simulasi', 'success');
             }
 
             this.updateGrandTotal();
+        },
+
+        onRowMarginChange(item, value) {
+            const percent = isNaN(parseFloat(value)) ? 0 : Math.max(0, Math.min(100, parseFloat(value)));
+            item.marginPercentage = percent / 100;
+            this.recalcItem(item);
+            this.updateGrandTotal();
+        },
+
+        recalcItem(item) {
+            item.marginValue = Math.round(item.unit_cost * item.marginPercentage);
+            item.totalTarif = item.unit_cost + item.marginValue;
+        },
+
+        recalcAll() {
+            this.simulationResults.forEach(item => this.recalcItem(item));
+            this.updateGrandTotal();
+        },
+
+        applyGlobalMarginToAll() {
+            const fraction = Math.max(0, Math.min(100, Number(this.globalMarginPercent))) / 100;
+            this.simulationResults.forEach(item => { item.marginPercentage = fraction; this.recalcItem(item); });
+            this.updateGrandTotal();
+            this.showNotification('Margin diterapkan ke semua layanan', 'success');
+        },
+
+        applyGlobalMarginToSelected() {
+            const fraction = Math.max(0, Math.min(100, Number(this.globalMarginPercent))) / 100;
+            let changed = 0;
+            this.simulationResults.forEach(item => {
+                if (item.selected) {
+                    item.marginPercentage = fraction;
+                    this.recalcItem(item);
+                    changed++;
+                }
+            });
+            this.updateGrandTotal();
+            this.showNotification(changed > 0 ? `Margin diterapkan ke ${changed} layanan terpilih` : 'Tidak ada layanan terpilih', changed > 0 ? 'success' : 'info');
         },
 
         showNotification(message, type = 'info') {
@@ -273,10 +359,29 @@ function simulationApp() {
         removeFromSimulation(index) {
             this.simulationResults.splice(index, 1);
             this.updateGrandTotal();
+            this.updateSelectedCount();
         },
 
         updateGrandTotal() {
             this.grandTotal = this.simulationResults.reduce((sum, item) => sum + item.totalTarif, 0);
+            this.sumUnitCost = this.simulationResults.reduce((sum, item) => sum + item.unit_cost, 0);
+        },
+
+        toggleSelectAll(checked) {
+            this.selectAll = !!checked;
+            this.simulationResults.forEach(item => item.selected = this.selectAll);
+            this.updateSelectedCount();
+        },
+
+        updateSelectedCount() {
+            this.selectedCount = this.simulationResults.filter(i => i.selected).length;
+            this.selectAll = this.simulationResults.length > 0 && this.selectedCount === this.simulationResults.length;
+        },
+
+        clearSelection() {
+            this.selectAll = false;
+            this.simulationResults.forEach(item => item.selected = false);
+            this.updateSelectedCount();
         },
 
         formatNumber(number) {
@@ -291,7 +396,7 @@ function simulationApp() {
                 'Kode': item.kode,
                 'Jenis Pemeriksaan': item.jenis_pemeriksaan,
                 'Unit Cost': item.unit_cost,
-                'Margin (%)': (item.marginPercentage * 100) + '%',
+                'Margin (%)': (item.marginPercentage * 100).toFixed(2) + '%',
                 'Nilai Margin (Rp)': item.marginValue,
                 'Tarif (Unit Cost + Margin)': item.totalTarif
             }));
