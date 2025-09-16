@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             KategoriSeeder::class,
             LayananExcelUploadPermissionSeeder::class,
             SimulationPermissionSeeder::class,
+            AddLayananPermissionsSeeder::class,
         ]);
 
         // Create admin user

@@ -77,6 +77,12 @@ Route::middleware('auth')->group(function () {
         Route::get('simulation', [SimulationController::class, 'index'])->name('simulation.index');
         Route::get('simulation/search', [SimulationController::class, 'search'])->name('simulation.search');
         Route::get('simulation/layanan', [SimulationController::class, 'getLayanan'])->name('simulation.layanan');
+        Route::get('simulation/list', [SimulationController::class, 'list'])->name('simulation.list');
+        Route::get('simulation/categories', [SimulationController::class, 'categories'])->name('simulation.categories');
+        Route::post('simulation', [SimulationController::class, 'store'])->name('simulation.store');
+        Route::get('simulation/{simulation}', [SimulationController::class, 'show'])->name('simulation.show');
+        Route::put('simulation/{simulation}', [SimulationController::class, 'update'])->name('simulation.update');
+        Route::delete('simulation/{simulation}', [SimulationController::class, 'destroy'])->name('simulation.destroy');
     });
 
 });

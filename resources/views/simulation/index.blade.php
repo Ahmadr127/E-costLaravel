@@ -2,6 +2,20 @@
 
 @section('title', 'Simulasi Unit Cost')
 
+@push('scripts')
+<script>
+    window.SIMULATION_SEARCH_URL = "{{ route('simulation.search') }}";
+    window.SIMULATION_LIST_URL = "{{ route('simulation.list') }}";
+    window.SIMULATION_STORE_URL = "{{ route('simulation.store') }}";
+    window.SIMULATION_CATEGORIES_URL = "{{ route('simulation.categories') }}";
+    window.SIMULATION_SHOW_URL = function(id){ return `{{ url('simulation') }}/${id}` };
+    window.SIMULATION_UPDATE_URL = function(id){ return `{{ url('simulation') }}/${id}` };
+    window.SIMULATION_DELETE_URL = function(id){ return `{{ url('simulation') }}/${id}` };
+    window.CSRF_TOKEN = "{{ csrf_token() }}";
+</script>
+<script src="{{ asset('js/simulasi.js') }}"></script>
+@endpush
+
 @section('content')
 <div x-data="simulationApp()" class="space-y-4">
     <!-- Header & Search Section -->
@@ -12,6 +26,14 @@
                 <p class="text-sm text-gray-600">Hitung unit cost berdasarkan layanan yang dipilih</p>
             </div>
             <div class="flex items-center space-x-2">
+                <div class="hidden md:flex items-center space-x-2 mr-2">
+                    <button type="button" class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-2.5 py-1.5 text-xs bg-green-600 text-white hover:bg-green-700 focus:ring-green-500" @click="promptSaveSimulation()">
+                        <i class="fas fa-save mr-1"></i> Simpan
+                    </button>
+                    <button type="button" class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-2.5 py-1.5 text-xs bg-red-600 text-white hover:bg-red-700 focus:ring-red-500" @click="deleteActiveSimulation()" x-bind:disabled="!activeSimulationId">
+                        <i class="fas fa-trash mr-1"></i> Hapus
+                    </button>
+                </div>
                 <button 
                     type="button"
                     class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-3 py-1.5 text-xs bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -83,10 +105,12 @@
         </div>
     </div>
 
-
-
-    <!-- Simulation Results -->
-    <div x-show="simulationResults.length > 0" class="bg-white rounded-lg shadow-sm border border-gray-200">
+    <!-- Main 2-column layout: 70% simulation, 30% saved simulations -->
+    <div class="grid grid-cols-1 lg:grid-cols-10 gap-4">
+        <!-- Left: Simulation (span 7) -->
+        <div class="lg:col-span-7 space-y-4">
+            <!-- Simulation Results -->
+            <div x-show="simulationResults.length > 0" class="bg-white rounded-lg shadow-sm border border-gray-200">
         <div class="p-3 border-b border-gray-200">
             <h2 class="text-base font-semibold text-gray-900">Hasil Simulasi</h2>
         </div>
@@ -189,268 +213,105 @@
                 </div>
             </div>
         </div>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="simulationResults.length === 0" class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+                <div class="flex flex-col items-center">
+                    <i class="fas fa-calculator text-4xl text-gray-300 mb-3"></i>
+                    <h3 class="text-base font-medium text-gray-900 mb-1">Belum ada simulasi</h3>
+                    <p class="text-sm text-gray-500">Pilih layanan dan tambahkan ke simulasi untuk memulai perhitungan unit cost</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Saved simulations (span 3) -->
+        <aside class="lg:col-span-3 space-y-3">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="p-3 border-b border-gray-200 flex items-center justify-between">
+                    <h3 class="text-sm font-semibold text-gray-900">Simulasi Tersimpan</h3>
+                    <button type="button" class="text-xs text-blue-600 hover:text-blue-700" @click="refreshSavedSimulations()">
+                        <i class="fas fa-rotate mr-1"></i> Muat Ulang
+                    </button>
+                </div>
+                <div class="p-3 border-b border-gray-100">
+                    <div class="relative">
+                        <input type="text" x-model="savedFilter" placeholder="Cari nama..." class="w-full px-3 py-2 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                        <i class="fas fa-search absolute right-3 top-2.5 text-gray-400 text-xs"></i>
+                    </div>
+                </div>
+                <div class="max-h-[520px] overflow-y-auto divide-y divide-gray-100">
+                    <template x-for="item in filteredSavedSimulations" :key="item.id">
+                        <div class="px-3 py-2 hover:bg-gray-50">
+                            <div class="flex items-start justify-between">
+                                <div class="min-w-0">
+                                    <div class="flex items-center gap-2">
+                                        <p class="text-sm font-medium text-gray-900 truncate" x-text="item.name"></p>
+                                        <span class="text-[10px] text-gray-500" x-text="formatDateAgo(item.updated_at)"></span>
+                                    </div>
+                                    <p class="text-[11px] text-gray-500">
+                                        <span x-text="item.items_count"></span> item · Total: <span class="font-medium" x-text="'Rp ' + formatNumber(item.grand_total)"></span>
+                                        <template x-if="item.category_name">
+                                            <span> · Kategori: <span class="font-medium" x-text="item.category_name"></span></span>
+                                        </template>
+                                    </p>
+                                </div>
+                                <div class="flex-shrink-0 flex items-center gap-1">
+                                    <button class="px-2 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700" @click="loadSimulation(item.id)">
+                                        Muat
+                                    </button>
+                                    <button class="px-2 py-1 text-[11px] bg-red-600 text-white rounded hover:bg-red-700" @click="deleteSaved(item.id)">
+                                        Hapus
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                    <div x-show="filteredSavedSimulations.length === 0" class="p-4 text-center text-xs text-gray-500">Tidak ada data</div>
+                </div>
+            </div>
+        </aside>
     </div>
 
-    <!-- Empty State -->
-    <div x-show="simulationResults.length === 0" class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
-        <div class="flex flex-col items-center">
-            <i class="fas fa-calculator text-4xl text-gray-300 mb-3"></i>
-            <h3 class="text-base font-medium text-gray-900 mb-1">Belum ada simulasi</h3>
-            <p class="text-sm text-gray-500">Pilih layanan dan tambahkan ke simulasi untuk memulai perhitungan unit cost</p>
+    <!-- Save Simulation Modal -->
+    <div x-cloak x-show="showSaveModal" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black bg-opacity-40" @click="showSaveModal=false"></div>
+        <div class="relative bg-white w-full max-w-md rounded-lg shadow-xl border border-gray-200">
+            <div class="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
+                <h3 class="text-sm font-semibold text-gray-900">Simpan Simulasi</h3>
+                <button class="text-gray-400 hover:text-gray-600" @click="showSaveModal=false"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-4 space-y-3">
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Nama Simulasi</label>
+                    <input type="text" x-model="saveName" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Masukkan nama simulasi">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Kategori (diterapkan ke semua layanan)</label>
+                    <div class="relative">
+                        <input type="text" x-model="categoryModalSearch" @input="fetchCategoriesForModal(categoryModalSearch)" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Cari kategori...">
+                        <div class="mt-1 max-h-44 overflow-y-auto border border-gray-200 rounded-md bg-white">
+                            <template x-for="opt in categoryModalOptions" :key="opt.id">
+                                <div class="px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer flex items-center justify-between" @click="selectModalCategory(opt)">
+                                    <span x-text="opt.nama_kategori"></span>
+                                    <i class="fas fa-check text-green-600" x-show="selectedCategory && selectedCategory.id === opt.id"></i>
+                                </div>
+                            </template>
+                            <div class="px-3 py-2 text-xs text-gray-500" x-show="categoryModalOptions.length === 0">Tidak ada hasil</div>
+                        </div>
+                    </div>
+                    <div class="mt-2 text-xs text-gray-600" x-show="selectedCategory">Terpilih: <span class="font-medium" x-text="selectedCategory?.nama_kategori"></span></div>
+                </div>
+            </div>
+            <div class="px-4 py-3 border-t border-gray-200 flex items-center justify-end gap-2">
+                <button class="px-3 py-1.5 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50" @click="showSaveModal=false">Batal</button>
+                <button class="px-3 py-1.5 text-xs rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50" :disabled="isSaving" @click="confirmSaveFromModal()">
+                    <span x-show="!isSaving"><i class="fas fa-save mr-1"></i> Simpan</span>
+                    <span x-show="isSaving"><i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan...</span>
+                </button>
+            </div>
         </div>
     </div>
 </div>
 
-<script>
-function simulationApp() {
-    console.log('simulationApp initialized');
-    return {
-        searchQuery: '',
-        searchResults: [],
-        simulationResults: [],
-        grandTotal: 0,
-        sumUnitCost: 0,
-        sumTarifMaster: 0,
-        searchTimeout: null,
-        isSearching: false,
-        showDropdown: false,
-        marginPercentage: 0.10, // Default 10% margin
-        globalMarginPercent: 10,
-        selectAll: false,
-        selectedCount: 0,
-
-        async searchLayanan(query) {
-            console.log('searchLayanan called with:', query);
-            this.searchQuery = query;
-            
-            if (query.length < 2) {
-                this.searchResults = [];
-                this.isSearching = false;
-                this.showDropdown = false;
-                return;
-            }
-
-            clearTimeout(this.searchTimeout);
-            this.searchTimeout = setTimeout(async () => {
-                this.isSearching = true;
-                this.showDropdown = true;
-                try {
-                    console.log('Making request to:', `{{ route('simulation.search') }}?search=${encodeURIComponent(query)}`);
-                    
-                    const response = await fetch(`{{ route('simulation.search') }}?search=${encodeURIComponent(query)}`, {
-                        method: 'GET',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            'Accept': 'application/json',
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
-                        },
-                        credentials: 'same-origin'
-                    });
-                    
-                    console.log('Response status:', response.status);
-                    
-                    if (!response.ok) {
-                        const errorText = await response.text();
-                        console.error('Error response:', errorText);
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
-                    
-                    const data = await response.json();
-                    console.log('Response data:', data);
-                    this.searchResults = data.data || [];
-                    console.log('Search results updated:', this.searchResults);
-                } catch (error) {
-                    console.error('Error searching layanan:', error);
-                    this.searchResults = [];
-                } finally {
-                    this.isSearching = false;
-                }
-            }, 300);
-        },
-
-        addLayananToSimulation(layanan) {
-            const existingIndex = this.simulationResults.findIndex(item => item.id === layanan.id);
-            
-            if (existingIndex !== -1) {
-                // Item already exists, show message
-                this.showNotification('Layanan ini sudah ada dalam simulasi', 'warning');
-                return;
-            } else {
-                // Add new item with integer normalization and margin calculations
-                const appliedMarginFraction = Math.max(0, Math.min(100, Number(this.globalMarginPercent))) / 100;
-                const unitCostValue = Math.round(Number(layanan.unit_cost) || 0);
-                const tarifMasterValue = Math.round(Number(layanan.tarif_master) || 0);
-                const marginValue = Math.round(unitCostValue * appliedMarginFraction);
-                const totalTarif = unitCostValue + marginValue;
-                
-                this.simulationResults.push({
-                    ...layanan,
-                    unit_cost: unitCostValue,
-                    tarif_master: tarifMasterValue,
-                    marginPercentage: appliedMarginFraction,
-                    marginValue: marginValue,
-                    totalTarif: totalTarif,
-                    selected: false
-                });
-                
-                // Clear search results and close dropdown after adding
-                this.searchResults = [];
-                this.searchQuery = '';
-                this.showDropdown = false;  
-                
-                // Show success notification
-                this.showNotification('Layanan berhasil ditambahkan ke simulasi', 'success');
-            }
-
-            this.updateGrandTotal();
-        },
-
-        onRowMarginChange(item, value) {
-            const percent = isNaN(parseFloat(value)) ? 0 : Math.max(0, Math.min(100, parseFloat(value)));
-            item.marginPercentage = percent / 100;
-            this.recalcItem(item);
-            this.updateGrandTotal();
-        },
-
-        recalcItem(item) {
-            const unitCostValue = Math.round(Number(item.unit_cost) || 0);
-            item.unit_cost = unitCostValue;
-            item.marginValue = Math.round(unitCostValue * (Number(item.marginPercentage) || 0));
-            item.totalTarif = unitCostValue + item.marginValue;
-        },
-
-        recalcAll() {
-            this.simulationResults.forEach(item => this.recalcItem(item));
-            this.updateGrandTotal();
-        },
-
-        applyGlobalMarginToAll() {
-            const fraction = Math.max(0, Math.min(100, Number(this.globalMarginPercent))) / 100;
-            this.simulationResults.forEach(item => { item.marginPercentage = fraction; this.recalcItem(item); });
-            this.updateGrandTotal();
-            this.showNotification('Margin diterapkan ke semua layanan', 'success');
-        },
-
-        applyGlobalMarginToSelected() {
-            const fraction = Math.max(0, Math.min(100, Number(this.globalMarginPercent))) / 100;
-            let changed = 0;
-            this.simulationResults.forEach(item => {
-                if (item.selected) {
-                    item.marginPercentage = fraction;
-                    this.recalcItem(item);
-                    changed++;
-                }
-            });
-            this.updateGrandTotal();
-            this.showNotification(changed > 0 ? `Margin diterapkan ke ${changed} layanan terpilih` : 'Tidak ada layanan terpilih', changed > 0 ? 'success' : 'info');
-        },
-
-        showNotification(message, type = 'info') {
-            // Create notification element
-            const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm ${
-                type === 'success' ? 'bg-green-500 text-white' : 
-                type === 'warning' ? 'bg-yellow-500 text-white' : 
-                'bg-blue-500 text-white'
-            }`;
-            notification.innerHTML = `
-                <div class="flex items-center">
-                    <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'} mr-2"></i>
-                    <span>${message}</span>
-                </div>
-            `;
-            
-            document.body.appendChild(notification);
-            
-            // Remove notification after 3 seconds
-            setTimeout(() => {
-                if (notification.parentNode) {
-                    notification.parentNode.removeChild(notification);
-                }
-            }, 3000);
-        },
-
-        removeFromSimulation(index) {
-            this.simulationResults.splice(index, 1);
-            this.updateGrandTotal();
-            this.updateSelectedCount();
-        },
-
-        updateGrandTotal() {
-            this.grandTotal = this.simulationResults.reduce((sum, item) => sum + (Math.round(Number(item.totalTarif) || 0)), 0);
-            this.sumUnitCost = this.simulationResults.reduce((sum, item) => sum + (Math.round(Number(item.unit_cost) || 0)), 0);
-            this.sumTarifMaster = this.simulationResults.reduce((sum, item) => sum + (Math.round(Number(item.tarif_master) || 0)), 0);
-        },
-
-        toggleSelectAll(checked) {
-            this.selectAll = !!checked;
-            this.simulationResults.forEach(item => item.selected = this.selectAll);
-            this.updateSelectedCount();
-        },
-
-        updateSelectedCount() {
-            this.selectedCount = this.simulationResults.filter(i => i.selected).length;
-            this.selectAll = this.simulationResults.length > 0 && this.selectedCount === this.simulationResults.length;
-        },
-
-        clearSelection() {
-            this.selectAll = false;
-            this.simulationResults.forEach(item => item.selected = false);
-            this.updateSelectedCount();
-        },
-
-        formatNumber(number) {
-            const n = Math.round(Number(number) || 0);
-            return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
-        },
-
-        exportResults() {
-            if (this.simulationResults.length === 0) return;
-
-            const data = this.simulationResults.map((item, index) => ({
-                'No': index + 1,
-                'Kode': item.kode,
-                'Jenis Pemeriksaan': item.jenis_pemeriksaan,
-                'Tarif Master': Math.round(Number(item.tarif_master) || 0),
-                'Unit Cost': Math.round(Number(item.unit_cost) || 0),
-                'Margin (%)': (item.marginPercentage * 100).toFixed(2) + '%',
-                'Nilai Margin (Rp)': Math.round(Number(item.marginValue) || 0),
-                'Tarif (Unit Cost + Margin)': Math.round(Number(item.totalTarif) || 0)
-            }));
-
-            const csv = this.convertToCSV(data);
-            this.downloadCSV(csv, 'simulasi-unit-cost.csv');
-        },
-
-        convertToCSV(data) {
-            const headers = Object.keys(data[0]);
-            const csvContent = [
-                headers.join(','),
-                ...data.map(row => headers.map(header => `"${row[header]}"`).join(','))
-            ].join('\n');
-            return csvContent;
-        },
-
-        downloadCSV(csv, filename) {
-            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', filename);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        },
-        
-        resetSimulation() {
-            this.simulationResults = [];
-            this.grandTotal = 0;
-            this.clearSelection();
-        }
-    }
-}
-</script>
 @endsection
-

@@ -33,14 +33,10 @@ class AddLayananPermissionsSeeder extends Seeder
 
         if ($adminRole) {
             $adminRole->permissions()->syncWithoutDetaching(
-                Permission::whereIn('name', ['manage_layanan', 'manage_kategori'])->get()
+                Permission::whereIn('name', ['manage_layanan', 'manage_kategori', 'access_simulation'])->get()
             );
         }
 
-        if ($librarianRole) {
-            $librarianRole->permissions()->syncWithoutDetaching(
-                Permission::whereIn('name', ['manage_layanan', 'manage_kategori'])->get()
-            );
-        }
+
     }
 }

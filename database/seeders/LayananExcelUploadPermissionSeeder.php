@@ -36,6 +36,11 @@ class LayananExcelUploadPermissionSeeder extends Seeder
             if ($uploadPermission && !$adminRole->permissions()->where('permission_id', $uploadPermission->id)->exists()) {
                 $adminRole->permissions()->attach($uploadPermission->id);
             }
+            // Ensure admin also has access_simulation
+            $simPermission = Permission::where('name', 'access_simulation')->first();
+            if ($simPermission && !$adminRole->permissions()->where('permission_id', $simPermission->id)->exists()) {
+                $adminRole->permissions()->attach($simPermission->id);
+            }
         }
 
         // Assign permission to super_admin role if exists

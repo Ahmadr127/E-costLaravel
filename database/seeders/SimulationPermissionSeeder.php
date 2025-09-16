@@ -21,10 +21,19 @@ class SimulationPermissionSeeder extends Seeder
         ];
 
         foreach ($permissions as $permission) {
-            Permission::updateOrCreate(
+            $perm = Permission::updateOrCreate(
                 ['name' => $permission['name']],
                 $permission
             );
+        }
+
+        // Attach to admin role if present
+        $adminRole = \App\Models\Role::where('name', 'admin')->first();
+        if ($adminRole) {
+            $perm = Permission::where('name', 'access_simulation')->first();
+            if ($perm && !$adminRole->permissions()->where('permission_id', $perm->id)->exists()) {
+                $adminRole->permissions()->attach($perm->id);
+            }
         }
     }
 }

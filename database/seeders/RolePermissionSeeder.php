@@ -18,6 +18,8 @@ class RolePermissionSeeder extends Seeder
             ['name' => 'manage_users', 'display_name' => 'Kelola Users', 'description' => 'Mengelola pengguna'],
             ['name' => 'manage_layanan', 'display_name' => 'Kelola Layanan', 'description' => 'Mengelola data layanan'],
             ['name' => 'manage_kategori', 'display_name' => 'Kelola Kategori', 'description' => 'Mengelola kategori layanan'],
+            // Ensure simulation access permission exists early so it can be attached to admin
+            ['name' => 'access_simulation', 'display_name' => 'Akses Simulasi', 'description' => 'Mengakses halaman simulasi layanan'],
         ];
 
         foreach ($permissions as $permission) {

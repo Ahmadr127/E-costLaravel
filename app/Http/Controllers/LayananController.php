@@ -456,12 +456,24 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
         $jenisPemeriksaan = isset($row[$this->columnMapping['jenis_pemeriksaan']]) ? trim($row[$this->columnMapping['jenis_pemeriksaan']]) : '';
         $unitCost = isset($row[$this->columnMapping['unit_cost']]) ? $this->parseUnitCost($row[$this->columnMapping['unit_cost']]) : null;
         $tarifMaster = isset($this->columnMapping['tarif_master']) && isset($row[$this->columnMapping['tarif_master']]) ? $this->normalizeTarifMaster(trim((string)$row[$this->columnMapping['tarif_master']])) : null;
-        
-        // Validasi minimal: wajib ada minimal salah satu antara kode atau jenis pemeriksaan, dan unit_cost boleh 0
-        if (empty($kode) && empty($jenisPemeriksaan)) {
-            \Log::info("Skipping row {$this->currentRow} - missing required fields:", [
-                'kode' => $kode, 
-                'jenis_pemeriksaan' => $jenisPemeriksaan
+
+        // Heuristik: deteksi dan lewati baris header atau baris judul seksi (mis. "Tindakan Operasi")
+        $lowerKode = strtolower($kode);
+        $lowerJenis = strtolower($jenisPemeriksaan);
+        $isHeaderLike = in_array($lowerKode, ['no', 'kode', '#'])
+            || strpos($lowerJenis, 'jenis') !== false
+            || strpos($lowerJenis, 'pemeriksaan') !== false
+            || in_array($lowerJenis, ['tindakan operasi', 'pemeriksaan laboratorium', 'radiologi', 'farmasi', 'igd', 'ii', 'poli']);
+
+        // Data dianggap valid jika memiliki salah satu angka (unit_cost atau tarif_master) atau memiliki kode yang bukan header
+        $hasNumeric = is_numeric($unitCost) || !empty($tarifMaster);
+        $hasValidKode = !empty($kode) && !in_array($lowerKode, ['no', 'kode', '#']);
+        if ($isHeaderLike || (!$hasNumeric && !$hasValidKode)) {
+            \Log::info("Skipping row {$this->currentRow} - detected as header/section or lacks numeric fields:", [
+                'kode' => $kode,
+                'jenis_pemeriksaan' => $jenisPemeriksaan,
+                'unit_cost' => $unitCost,
+                'tarif_master' => $tarifMaster,
             ]);
             $this->skippedCount++;
             return null;
