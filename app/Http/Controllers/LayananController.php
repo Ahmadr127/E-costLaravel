@@ -6,6 +6,7 @@ use App\Models\Layanan;
 use App\Models\Kategori;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 use Maatwebsite\Excel\Facades\Excel;
 use Maatwebsite\Excel\Concerns\ToModel;
@@ -314,6 +315,7 @@ class LayananController extends Controller
         try {
             // Count total records before deletion
             $totalRecords = Layanan::count();
+            $totalSimulationItems = DB::table('simulation_items')->count();
             
             if ($totalRecords === 0) {
                 return redirect()->back()->with('info', 'Tidak ada data layanan yang perlu dihapus.');
@@ -327,16 +329,29 @@ class LayananController extends Controller
                 'ip_address' => $request->ip()
             ]);
 
-            // Delete all layanan records
-            Layanan::truncate();
+            // Use transaction and DELETE (not TRUNCATE) to avoid FK truncate restriction
+            DB::beginTransaction();
+            try {
+                // 1) Remove all simulation items that reference layanan
+                DB::table('simulation_items')->delete();
+
+                // 2) Now clear layanan
+                DB::table('layanan')->delete();
+
+                DB::commit();
+            } catch (\Throwable $txe) {
+                DB::rollBack();
+                throw $txe;
+            }
 
             \Log::info('All layanan data cleared successfully', [
-                'deleted_records' => $totalRecords,
+                'deleted_layanan' => $totalRecords,
+                'deleted_simulation_items' => $totalSimulationItems,
                 'user_id' => auth()->id()
             ]);
 
             return redirect()->route('layanan.index')->with('success', 
-                "Semua data layanan telah berhasil dihapus. Total {$totalRecords} record telah dihapus."
+                "Semua data layanan telah berhasil dihapus. Total layanan: {$totalRecords}, simulation item: {$totalSimulationItems}."
             );
 
         } catch (\Exception $e) {
