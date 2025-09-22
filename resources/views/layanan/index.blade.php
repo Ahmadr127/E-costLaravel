@@ -187,13 +187,14 @@
         </div>
 
         <!-- Table using responsive-table component -->
-        <x-responsive-table :headers="['No','Kode','Jenis Pemeriksaan','Tarif Master','Unit Cost','Aksi']" minWidth="1000px">
+        <x-responsive-table :headers="['No','Kode','Jenis Pemeriksaan','Kategori','Tarif Master','Unit Cost','Aksi']" minWidth="1100px">
             @forelse($layanan as $index => $item)
             <tr class="hover:bg-gray-50" x-data="{ openEdit:false }">
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ ($layanan->firstItem() ?? 0) + $index }}</td>
                 
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ $item->kode ?: '-' }}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ $item->jenis_pemeriksaan ?: '-' }}</td>
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ optional($item->kategori)->nama_kategori ?: '-' }}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ is_numeric($item->tarif_master) ? ('Rp ' . number_format((float)$item->tarif_master, 0, ',', '.')) : ($item->tarif_master ?: '-') }}</td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">Rp {{ number_format($item->unit_cost, 0, ',', '.') }}</td>
                 
@@ -269,7 +270,7 @@
             @endforelse
             @if($layanan->count())
             <tr class="bg-gray-50">
-                <td class="px-4 py-3 text-sm font-semibold text-gray-900" colspan="4">Total Unit Cost (halaman ini)</td>
+                <td class="px-4 py-3 text-sm font-semibold text-gray-900" colspan="5">Total Unit Cost (halaman ini)</td>
                 <td class="px-4 py-3 whitespace-nowrap text-sm font-extrabold text-gray-900">Rp {{ number_format($layanan->sum('unit_cost'), 0, ',', '.') }}</td>
                 <td class="px-4 py-3"></td>
             </tr>

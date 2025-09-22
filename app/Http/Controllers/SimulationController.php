@@ -97,11 +97,26 @@ class SimulationController extends Controller
         return response()->json([
             'success' => true,
             'data' => $simulations->map(function($sim) {
-                // Derive category name from the first item's layanan.kategori if exists
-                $firstItem = $sim->items->first();
-                $categoryName = $firstItem && $firstItem->layanan && $firstItem->layanan->kategori
-                    ? $firstItem->layanan->kategori->nama_kategori
-                    : null;
+                // Collect unique category names across items
+                $categoryNames = $sim->items
+                    ->map(function($item) {
+                        return optional(optional($item->layanan)->kategori)->nama_kategori;
+                    })
+                    ->filter()
+                    ->unique()
+                    ->values();
+
+                // Backward-compatible single name: first one if exists
+                $categoryName = $categoryNames->first();
+
+                // Build summary: up to 3 names, then suffix with "+N lainnya"
+                $summary = '';
+                if ($categoryNames->count() > 0) {
+                    $shown = $categoryNames->take(3)->implode(', ');
+                    $extraCount = max(0, $categoryNames->count() - 3);
+                    $summary = $extraCount > 0 ? ($shown . ' +' . $extraCount . ' lainnya') : $shown;
+                }
+
                 return [
                     'id' => $sim->id,
                     'name' => $sim->name,
@@ -109,7 +124,11 @@ class SimulationController extends Controller
                     'items_count' => $sim->items_count,
                     'created_at' => $sim->created_at,
                     'updated_at' => $sim->updated_at,
+                    // existing field for backward compatibility
                     'category_name' => $categoryName,
+                    // new fields
+                    'category_names' => $categoryNames,
+                    'category_summary' => $summary,
                 ];
             }),
         ]);
@@ -149,7 +168,6 @@ class SimulationController extends Controller
             'items.*.margin_value' => 'required|integer|min:0',
             'items.*.margin_percentage' => 'required|numeric|min:0|max:100',
             'items.*.total_tarif' => 'required|integer|min:0',
-            'items.*.kategori_id' => 'required|exists:kategori,id',
             'sum_unit_cost' => 'required|integer|min:0',
             'sum_tarif_master' => 'required|integer|min:0',
             'grand_total' => 'required|integer|min:0',
@@ -178,8 +196,7 @@ class SimulationController extends Controller
                 'total_tarif' => (int) $item['total_tarif'],
             ]);
 
-            // Update layanan kategori based on selection
-            Layanan::where('id', $item['layanan_id'])->update(['kategori_id' => $item['kategori_id']]);
+            // No kategori update required during simulation save
         }
 
         return response()->json([
@@ -192,8 +209,23 @@ class SimulationController extends Controller
     /**
      * Show a simulation with items.
      */
-    public function show(Simulation $simulation): JsonResponse
+    public function show($id): JsonResponse
     {
+        \Log::info('Simulation show called with ID: ' . $id);
+        \Log::info('Current user ID: ' . Auth::id());
+        
+        $simulation = Simulation::find($id);
+        
+        if (!$simulation) {
+            \Log::warning('Simulation not found with ID: ' . $id);
+            return response()->json([
+                'success' => false,
+                'message' => 'Simulasi tidak ditemukan'
+            ], 404);
+        }
+        
+        \Log::info('Simulation found: ' . $simulation->id . ', User ID: ' . $simulation->user_id);
+        
         $this->authorizeOwner($simulation);
 
         $simulation->load(['items.layanan.kategori']);
@@ -234,8 +266,17 @@ class SimulationController extends Controller
     /**
      * Update a simulation (rename, notes, items replace)
      */
-    public function update(Request $request, Simulation $simulation): JsonResponse
+    public function update(Request $request, $id): JsonResponse
     {
+        $simulation = Simulation::find($id);
+        
+        if (!$simulation) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Simulasi tidak ditemukan'
+            ], 404);
+        }
+        
         $this->authorizeOwner($simulation);
 
         $validated = $request->validate([
@@ -250,7 +291,6 @@ class SimulationController extends Controller
             'items.*.margin_value' => 'required|integer|min:0',
             'items.*.margin_percentage' => 'required|numeric|min:0|max:100',
             'items.*.total_tarif' => 'required|integer|min:0',
-            'items.*.kategori_id' => 'required|exists:kategori,id',
             'sum_unit_cost' => 'required|integer|min:0',
             'sum_tarif_master' => 'required|integer|min:0',
             'grand_total' => 'required|integer|min:0',
@@ -280,8 +320,7 @@ class SimulationController extends Controller
                 'total_tarif' => (int) $item['total_tarif'],
             ]);
 
-            // Update layanan kategori based on selection
-            Layanan::where('id', $item['layanan_id'])->update(['kategori_id' => $item['kategori_id']]);
+            // No kategori update required during simulation update
         }
 
         return response()->json([
@@ -293,8 +332,17 @@ class SimulationController extends Controller
     /**
      * Delete a simulation
      */
-    public function destroy(Simulation $simulation): JsonResponse
+    public function destroy($id): JsonResponse
     {
+        $simulation = Simulation::find($id);
+        
+        if (!$simulation) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Simulasi tidak ditemukan'
+            ], 404);
+        }
+        
         $this->authorizeOwner($simulation);
         $simulation->delete();
 
@@ -306,9 +354,20 @@ class SimulationController extends Controller
 
     private function authorizeOwner(Simulation $simulation): void
     {
-        if ($simulation->user_id !== Auth::id()) {
+        $simulationUserId = $simulation->user_id;
+        $currentUserId = Auth::id();
+        
+        \Log::info('Authorizing owner - Simulation user ID: ' . $simulationUserId . ' (type: ' . gettype($simulationUserId) . ')');
+        \Log::info('Current user ID: ' . $currentUserId . ' (type: ' . gettype($currentUserId) . ')');
+        \Log::info('Strict comparison (===): ' . ($simulationUserId === $currentUserId ? 'true' : 'false'));
+        \Log::info('Loose comparison (==): ' . ($simulationUserId == $currentUserId ? 'true' : 'false'));
+        
+        if ($simulationUserId != $currentUserId) {
+            \Log::warning('Authorization failed - User does not own simulation');
             abort(403, 'Unauthorized');
         }
+        
+        \Log::info('Authorization successful');
     }
 }
 

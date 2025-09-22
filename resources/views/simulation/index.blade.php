@@ -165,7 +165,9 @@
                                 </div>
                             </td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="'Rp ' + formatNumber(result.tarif_master || 0)"></td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="'Rp ' + formatNumber(result.unit_cost)"></td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900">
+                                <input type="text" inputmode="numeric" class="w-28 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" :value="formatNumber(result.unit_cost)" @input="onUnitCostInput(result, $event)" @focus="$event.target.select()" @blur="onUnitCostBlur(result, $event)">
+                            </td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900">
                                 <div class="flex items-center gap-1">
                                     <input type="number" min="0" max="100" step="0.01" class="w-20 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" :value="(result.marginPercentage * 100).toFixed(2)" @input="onRowMarginChange(result, $event.target.value)">
@@ -251,8 +253,8 @@
                                     </div>
                                     <p class="text-[11px] text-gray-500">
                                         <span x-text="item.items_count"></span> item · Total: <span class="font-medium" x-text="'Rp ' + formatNumber(item.grand_total)"></span>
-                                        <template x-if="item.category_name">
-                                            <span> · Kategori: <span class="font-medium" x-text="item.category_name"></span></span>
+                                        <template x-if="item.category_summary">
+                                            <span> · Kategori: <span class="font-medium" x-text="item.category_summary"></span></span>
                                         </template>
                                     </p>
                                 </div>
@@ -286,22 +288,7 @@
                     <label class="block text-xs text-gray-600 mb-1">Nama Simulasi</label>
                     <input type="text" x-model="saveName" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Masukkan nama simulasi">
                 </div>
-                <div>
-                    <label class="block text-xs text-gray-600 mb-1">Kategori (diterapkan ke semua layanan)</label>
-                    <div class="relative">
-                        <input type="text" x-model="categoryModalSearch" @input="fetchCategoriesForModal(categoryModalSearch)" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Cari kategori...">
-                        <div class="mt-1 max-h-44 overflow-y-auto border border-gray-200 rounded-md bg-white">
-                            <template x-for="opt in categoryModalOptions" :key="opt.id">
-                                <div class="px-3 py-2 text-sm hover:bg-gray-50 cursor-pointer flex items-center justify-between" @click="selectModalCategory(opt)">
-                                    <span x-text="opt.nama_kategori"></span>
-                                    <i class="fas fa-check text-green-600" x-show="selectedCategory && selectedCategory.id === opt.id"></i>
-                                </div>
-                            </template>
-                            <div class="px-3 py-2 text-xs text-gray-500" x-show="categoryModalOptions.length === 0">Tidak ada hasil</div>
-                        </div>
-                    </div>
-                    <div class="mt-2 text-xs text-gray-600" x-show="selectedCategory">Terpilih: <span class="font-medium" x-text="selectedCategory?.nama_kategori"></span></div>
-                </div>
+                <!-- Kategori picker dihapus sesuai requirement -->
             </div>
             <div class="px-4 py-3 border-t border-gray-200 flex items-center justify-end gap-2">
                 <button class="px-3 py-1.5 text-xs rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50" @click="showSaveModal=false">Batal</button>

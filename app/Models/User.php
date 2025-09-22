@@ -63,6 +63,17 @@ class User extends Authenticatable
 
     public function hasPermission($permission)
     {
-        return $this->role->hasPermission($permission);
+        \Log::info('User hasPermission called for: ' . $permission);
+        \Log::info('User role: ' . ($this->role ? $this->role->name : 'No role'));
+        
+        if (!$this->role) {
+            \Log::warning('User has no role assigned');
+            return false;
+        }
+        
+        $hasPermission = $this->role->hasPermission($permission);
+        \Log::info('Permission result: ' . ($hasPermission ? 'Granted' : 'Denied'));
+        
+        return $hasPermission;
     }
 }

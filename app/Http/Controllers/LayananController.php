@@ -82,42 +82,70 @@ class LayananController extends Controller
 
         $filename = 'layanan_' . now()->format('Ymd_His') . '.csv';
 
-        return response()->streamDownload(function () use ($query) {
-            $handle = fopen('php://output', 'w');
-            // UTF-8 BOM for Excel compatibility
-            fwrite($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
+        // Count for zero-data handling and logging context
+        $totalRows = (clone $query)->count();
+        \Log::info('Export layanan requested', [
+            'filters' => [
+                'search' => $request->get('search'),
+                'kategori_id' => $request->get('kategori_id'),
+            ],
+            'total_rows' => $totalRows,
+        ]);
 
-            // Headers
-            fputcsv($handle, [
-                'No', 'Kode', 'Jenis Pemeriksaan', 'Tarif Master', 'Kategori', 'Unit Cost', 'Deskripsi'
-            ]);
+        return response()->streamDownload(function () use ($query, $totalRows) {
+            try {
+                $handle = fopen('php://output', 'w');
+                // UTF-8 BOM for Excel compatibility
+                fwrite($handle, chr(0xEF) . chr(0xBB) . chr(0xBF));
 
-            $counter = 0;
-            $totalUnitCost = 0;
+                // Headers
+                fputcsv($handle, [
+                    'No', 'Kode', 'Jenis Pemeriksaan', 'Tarif Master', 'Kategori', 'Unit Cost', 'Deskripsi'
+                ]);
 
-            $query->orderByDesc('id')->chunk(500, function ($rows) use (&$counter, &$totalUnitCost, $handle) {
-                foreach ($rows as $row) {
-                    $counter++;
-                    $unitCost = (float) $row->unit_cost;
-                    $totalUnitCost += $unitCost;
+                $counter = 0;
+                $totalUnitCost = 0;
 
-                    fputcsv($handle, [
-                        $counter,
-                        $row->kode ?: '-',
-                        $row->jenis_pemeriksaan ?: '-',
-                        $row->tarif_master ?: '-',
-                        optional($row->kategori)->nama_kategori,
-                        number_format($unitCost, 2, '.', ''),
-                        $row->deskripsi ?: '-',
-                    ]);
+                if ($totalRows === 0) {
+                    // Write empty total and return early
+                    fputcsv($handle, []);
+                    fputcsv($handle, ['', 'Total', '', '', '', number_format(0, 2, '.', ''), '']);
+                    fclose($handle);
+                    return;
                 }
-            });
 
-            // Total row
-            fputcsv($handle, []);
-            fputcsv($handle, ['', 'Total', '', '', '', number_format($totalUnitCost, 2, '.', ''), '']);
+                $query->orderByDesc('id')->chunk(500, function ($rows) use (&$counter, &$totalUnitCost, $handle) {
+                    foreach ($rows as $row) {
+                        $counter++;
+                        $unitCost = (float) ($row->unit_cost ?? 0);
+                        $totalUnitCost += $unitCost;
 
-            fclose($handle);
+                        fputcsv($handle, [
+                            $counter,
+                            $row->kode ?: '-',
+                            $row->jenis_pemeriksaan ?: '-',
+                            $row->tarif_master ?: '-',
+                            optional($row->kategori)->nama_kategori,
+                            number_format($unitCost, 2, '.', ''),
+                            $row->deskripsi ?: '-',
+                        ]);
+                    }
+                });
+
+                // Total row
+                fputcsv($handle, []);
+                fputcsv($handle, ['', 'Total', '', '', '', number_format($totalUnitCost, 2, '.', ''), '']);
+
+                fclose($handle);
+            } catch (\Throwable $e) {
+                \Log::error('Export layanan failed', [
+                    'message' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString(),
+                ]);
+                throw $e; // Let the exception bubble to client
+            }
         }, $filename, [
             'Content-Type' => 'text/csv; charset=UTF-8',
         ]);
@@ -264,17 +292,29 @@ class LayananController extends Controller
             Excel::import($import, $file);
 
             $importedCount = $import->getImportedCount();
+            $updatedCount = $import->getUpdatedCount();
             $skippedCount = $import->getSkippedCount();
 
             \Log::info('Import completed:', [
                 'imported' => $importedCount,
-                'skipped' => $skippedCount
+                'updated' => $updatedCount,
+                'skipped' => $skippedCount,
+                'total_processed' => $importedCount + $updatedCount + $skippedCount
             ]);
 
-            if ($importedCount > 0) {
-                return redirect()->route('layanan.index')->with('success', 
-                    "Import berhasil! Data yang diimpor: {$importedCount}, Data yang dilewati: {$skippedCount}"
-                );
+            if ($importedCount > 0 || $updatedCount > 0) {
+                $message = "Import berhasil! ";
+                if ($importedCount > 0) {
+                    $message .= "Data baru: {$importedCount}";
+                }
+                if ($updatedCount > 0) {
+                    $message .= ($importedCount > 0 ? ", " : "") . "Data diperbarui: {$updatedCount}";
+                }
+                if ($skippedCount > 0) {
+                    $message .= ", Data dilewati: {$skippedCount}";
+                }
+                
+                return redirect()->route('layanan.index')->with('success', $message);
             } else {
                 return redirect()->back()->with('warning', 
                     "Tidak ada data yang berhasil diimpor. Data yang dilewati: {$skippedCount}. Periksa format file Excel dan pastikan kolom 'kode' dan 'unit_cost' terisi."
@@ -375,6 +415,7 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
     use Importable, SkipsErrors;
 
     private $importedCount = 0;
+    private $updatedCount = 0;
     private $skippedCount = 0;
     private $currentRow = 0;
     private $columnMapping = [];
@@ -395,15 +436,24 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
             'jenis_pemeriksaan' => ['jenis', 'pemeriksaan', 'nama', 'tindakan', 'layanan'],
             'unit_cost' => ['unit cost', 'unitcost', 'cost', 'biaya', 'harga'],
             'tarif_master' => ['tarif master', 'ii', 'igd', 'poli'] ,
+            // Perluas sinonim kategori
+            'kategori' => ['kategori', 'kategori layanan', 'category', 'bagian', 'unit', 'departemen', 'instalasi', 'kelompok', 'sub kategori', 'sub-kategori', 'section'],
             'margin' => ['margin', 'keuntungan', 'profit'],
             'tarif' => ['tarif', 'harga', 'price', 'fee']
         ];
 
         $columnMapping = [];
         
-        // Analisis 3 baris pertama untuk mencari header
-        for ($row = 1; $row <= 3; $row++) {
-            for ($col = 'A'; $col <= 'Z'; $col++) {
+        // Tentukan batas kolom/row aktual dari sheet
+        $highestColumn = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::columnIndexFromString($worksheet->getHighestColumn());
+        $highestRow = (int) $worksheet->getHighestRow();
+        $scanRows = min(10, max(3, $highestRow));
+        \Log::info('Header scan window', ['highest_column_index' => $highestColumn, 'highest_row' => $highestRow, 'scan_rows' => $scanRows]);
+
+        // Analisis baris-baris awal untuk mencari header (lebih toleran posisi header)
+        for ($row = 1; $row <= $scanRows; $row++) {
+            for ($colIndex = 1; $colIndex <= $highestColumn; $colIndex++) {
+                $col = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex($colIndex);
                 $cellValue = $worksheet->getCell($col . $row)->getValue();
                 if ($cellValue) {
                     $value = strtolower(trim($cellValue));
@@ -412,13 +462,13 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
                     foreach ($headerPatterns as $field => $patterns) {
                         foreach ($patterns as $pattern) {
                             if (strpos($value, $pattern) !== false) {
-                                $columnIndex = ord($col) - ord('A'); // Convert A=0, B=1, etc.
+                                $columnIndex = $colIndex - 1; // Convert 1-based to 0-based index
                                 
                                 // Hanya set mapping jika belum ada, atau jika ini adalah unit_cost dan kolom sebelumnya bukan yang utama
                                 if (!isset($columnMapping[$field]) || 
                                     ($field === 'unit_cost' && $columnIndex < $columnMapping[$field])) {
                                     $columnMapping[$field] = $columnIndex;
-                                    \Log::info("Header detected: {$field} at column {$col} (index {$columnIndex}) - value: '{$value}'");
+                                    \Log::info("Header detected: {$field} at column {$col} (index {$columnIndex}) - value: '{$value}'", ['row' => $row]);
                                 }
                                 break 2; // Break dari kedua loop
                             }
@@ -438,16 +488,16 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
         if (empty($columnMapping['unit_cost'])) {
             $columnMapping['unit_cost'] = 6; // Default ke kolom G
         }
-        if (!isset($columnMapping['tarif_master'])) {
-            // default none
-        }
+        // kategori dan tarif_master opsional: hanya dipakai jika ditemukan
 
         $this->columnMapping = $columnMapping;
         
         // Tentukan baris data dimulai (cari baris pertama yang memiliki data di salah satu kolom kunci)
-        for ($row = 4; $row <= 15; $row++) {
-            $kodeCell = $worksheet->getCell(chr(ord('A') + $columnMapping['kode']) . $row)->getValue();
-            $jenisCell = $worksheet->getCell(chr(ord('A') + $columnMapping['jenis_pemeriksaan']) . $row)->getValue();
+        for ($row = 4; $row <= min(30, $highestRow); $row++) {
+            $kodeCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(($columnMapping['kode'] ?? 0) + 1);
+            $jenisCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(($columnMapping['jenis_pemeriksaan'] ?? 1) + 1);
+            $kodeCell = $worksheet->getCell($kodeCol . $row)->getValue();
+            $jenisCell = $worksheet->getCell($jenisCol . $row)->getValue();
             if ((isset($kodeCell) && trim((string)$kodeCell) !== '') || (isset($jenisCell) && trim((string)$jenisCell) !== '')) {
                 $this->dataStartRow = $row;
                 \Log::info("Data start row detected: {$row}");
@@ -471,6 +521,7 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
         $jenisPemeriksaan = isset($row[$this->columnMapping['jenis_pemeriksaan']]) ? trim($row[$this->columnMapping['jenis_pemeriksaan']]) : '';
         $unitCost = isset($row[$this->columnMapping['unit_cost']]) ? $this->parseUnitCost($row[$this->columnMapping['unit_cost']]) : null;
         $tarifMaster = isset($this->columnMapping['tarif_master']) && isset($row[$this->columnMapping['tarif_master']]) ? $this->normalizeTarifMaster(trim((string)$row[$this->columnMapping['tarif_master']])) : null;
+        $kategoriName = isset($this->columnMapping['kategori']) && isset($row[$this->columnMapping['kategori']]) ? trim((string)$row[$this->columnMapping['kategori']]) : '';
 
         // Heuristik: deteksi dan lewati baris header atau baris judul seksi (mis. "Tindakan Operasi")
         $lowerKode = strtolower($kode);
@@ -494,29 +545,80 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
             return null;
         }
 
-        // Get default kategori
-        $defaultKategori = Kategori::first();
-        if (!$defaultKategori) {
-            \Log::warning('No kategori found - creating default kategori for import');
-            $defaultKategori = Kategori::create([
-                'nama_kategori' => 'Default',
-                'deskripsi' => 'Dibuat otomatis saat import',
-                'is_active' => true,
-            ]);
+        // Resolve kategori: auto-create if not exists; default when empty
+        $kategoriModel = null;
+        if ($kategoriName !== '') {
+            $normalizedKategori = trim(mb_strtolower($kategoriName));
+            $kategoriModel = Kategori::whereRaw('LOWER(nama_kategori) = ?', [$normalizedKategori])->first();
+            if (!$kategoriModel) {
+                $kategoriModel = Kategori::create([
+                    'nama_kategori' => trim($kategoriName),
+                    'deskripsi' => 'Dibuat otomatis saat import',
+                    'is_active' => true,
+                ]);
+                \Log::info('Created kategori from import', ['nama_kategori' => $kategoriName, 'id' => $kategoriModel->id]);
+            }
+        } else {
+            // Use or create a default category
+            $kategoriModel = Kategori::whereRaw('LOWER(nama_kategori) = ?', ['default'])->first();
+            if (!$kategoriModel) {
+                $kategoriModel = Kategori::create([
+                    'nama_kategori' => 'Default',
+                    'deskripsi' => 'Kategori default otomatis untuk data tanpa kategori',
+                    'is_active' => true,
+                ]);
+                \Log::info('Created default kategori for empty kategori cell', ['id' => $kategoriModel->id]);
+            }
         }
 
+        // Handle existing records - update instead of skip
+        if (!empty($kode)) {
+            $existing = \App\Models\Layanan::where('kode', $kode)->first();
+            if ($existing) {
+                try {
+                    // Update existing record
+                    $existing->update([
+                        'jenis_pemeriksaan' => $jenisPemeriksaan,
+                        'tarif_master' => $tarifMaster,
+                        'kategori_id' => $kategoriModel->id,
+                        'unit_cost' => $unitCost ?: 0,
+                        'is_active' => true
+                    ]);
+                    
+                    $this->updatedCount++;
+                    \Log::info("Updated existing row {$this->currentRow}:", [
+                        'kode' => $kode, 
+                        'jenis_pemeriksaan' => $jenisPemeriksaan,
+                        'unit_cost' => $unitCost,
+                        'action' => 'updated'
+                    ]);
+                    return null; // Return null to skip creating new model
+                } catch (\Exception $e) {
+                    \Log::error("Failed to update existing row {$this->currentRow}:", [
+                        'kode' => $kode,
+                        'error' => $e->getMessage(),
+                        'action' => 'update_failed'
+                    ]);
+                    $this->skippedCount++;
+                    return null;
+                }
+            }
+        }
+
+        // Create new record
         $this->importedCount++;
-        \Log::info("Successfully processed row {$this->currentRow}:", [
+        \Log::info("Successfully created row {$this->currentRow}:", [
             'kode' => $kode, 
             'jenis_pemeriksaan' => $jenisPemeriksaan,
-            'unit_cost' => $unitCost
+            'unit_cost' => $unitCost,
+            'action' => 'created'
         ]);
 
         return new Layanan([
             'kode' => $kode,
             'jenis_pemeriksaan' => $jenisPemeriksaan,
             'tarif_master' => $tarifMaster,
-            'kategori_id' => $defaultKategori->id,
+            'kategori_id' => $kategoriModel->id,
             'unit_cost' => $unitCost ?: 0, // Default value 0 jika unit_cost kosong
             'is_active' => true
         ]);
@@ -570,6 +672,16 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
     public function getSkippedCount()
     {
         return $this->skippedCount;
+    }
+
+    public function getUpdatedCount()
+    {
+        return $this->updatedCount;
+    }
+
+    public function getTotalProcessedCount()
+    {
+        return $this->importedCount + $this->updatedCount + $this->skippedCount;
     }
 
     private function normalizeTarifMaster(?string $value): ?string

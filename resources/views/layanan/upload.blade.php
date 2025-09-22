@@ -119,44 +119,40 @@
                         Petunjuk Upload
                     </h3>
                 </div>
-                <div class="p-6 space-y-4">
-                    <div>
-                        <h4 class="text-sm font-medium text-gray-900 mb-2">Format Excel yang Diperlukan:</h4>
-                        <ul class="space-y-1">
-                            <li class="flex items-center text-sm text-gray-600">
-                                <i class="fas fa-check text-green-500 mr-2"></i>
-                                Kolom <strong>Kode</strong>
-                            </li>
-                            <li class="flex items-center text-sm text-gray-600">
-                                <i class="fas fa-check text-green-500 mr-2"></i>
-                                Kolom <strong>Jenis Pemeriksaan</strong>
-                            </li>
-                            <li class="flex items-center text-sm text-gray-600">
-                                <i class="fas fa-check text-green-500 mr-2"></i>
-                                Kolom <strong>Tarif Master</strong> (II / IGD / POLI) - opsional
-                            </li>
-                            <li class="flex items-center text-sm text-gray-600">
-                                <i class="fas fa-check text-green-500 mr-2"></i>
-                                Kolom <strong>Unit Cost</strong>
-                            </li>
-                        </ul>
+                <div class="p-6 space-y-5">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-sm font-medium text-gray-900">Format Excel yang Diperlukan</h4>
+                        <a href="{{ asset('templates/Template Unit Cost.xlsx') }}" class="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md bg-blue-600 text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors">
+                            <i class="fas fa-file-arrow-down mr-1"></i>
+                            Download Contoh
+                        </a>
                     </div>
-                    
+
+                    <div class="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-md p-3 space-y-1">
+                        <div><span class="font-semibold">Kode</span> (opsional, unik jika diisi)</div>
+                        <div><span class="font-semibold">Jenis Pemeriksaan</span> (opsional)</div>
+                        <div><span class="font-semibold">Kategori</span> (opsional, dapat nama baru)</div>
+                        <div><span class="font-semibold">Tarif Master</span> (opsional: II / IGD / POLI)</div>
+                        <div><span class="font-semibold">Unit Cost</span> (wajib, angka; titik/koma ribuan otomatis didukung)</div>
+                    </div>
+
                     <div>
-                        <h4 class="text-sm font-medium text-gray-900 mb-2">Ketentuan:</h4>
+                        <h4 class="text-sm font-medium text-gray-900 mb-2">Cara Mengisi</h4>
+                        <ol class="list-decimal list-inside space-y-1 text-sm text-gray-600">
+                            <li>Pastikan baris judul/header berada di atas data. Import otomatis mendeteksi header hingga 10 baris pertama.</li>
+                            <li>Isi <strong>Unit Cost</strong> dengan angka. Format 10000, 10.000 atau 10,000 sama-sama diterima.</li>
+                            <li>Isi <strong>Kategori</strong> bila ingin mengelompokkan layanan. Nama baru akan dibuat otomatis; jika kosong akan dimasukkan ke <strong>Default</strong>.</li>
+                            <li>Jika mengisi <strong>Kode</strong>, data dengan kode yang sudah ada akan diperbarui dengan data baru.</li>
+                        </ol>
+                    </div>
+
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900 mb-2">Ketentuan & Catatan</h4>
                         <ul class="space-y-1 text-sm text-gray-600">
-                            <li class="flex items-start">
-                                <i class="fas fa-exclamation-triangle text-yellow-500 mr-2 mt-0.5"></i>
-                                Baris dengan data tidak lengkap akan dilewati
-                            </li>
-                            <li class="flex items-start">
-                                <i class="fas fa-exclamation-triangle text-yellow-500 mr-2 mt-0.5"></i>
-                                Kode yang sudah ada akan dilewati
-                            </li>
-                            <li class="flex items-start">
-                                <i class="fas fa-info text-blue-500 mr-2 mt-0.5"></i>
-                                Data akan otomatis aktif setelah diimpor
-                            </li>
+                            <li class="flex items-start"><i class="fas fa-exclamation-triangle text-yellow-500 mr-2 mt-0.5"></i>Baris judul/seksi (mis. "HEMATOLOGI") akan di-skip otomatis.</li>
+                            <li class="flex items-start"><i class="fas fa-exclamation-triangle text-yellow-500 mr-2 mt-0.5"></i>Baris tanpa angka <strong>Unit Cost</strong> akan di-skip.</li>
+                            <li class="flex items-start"><i class="fas fa-info text-blue-500 mr-2 mt-0.5"></i>Kode yang sudah ada akan <strong>diperbarui</strong> dengan data baru.</li>
+                            <li class="flex items-start"><i class="fas fa-info text-blue-500 mr-2 mt-0.5"></i>Data yang berhasil diimport otomatis <strong>aktif</strong>.</li>
                         </ul>
                     </div>
                 </div>

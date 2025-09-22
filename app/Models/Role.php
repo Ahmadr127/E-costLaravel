@@ -27,9 +27,18 @@ class Role extends Model
 
     public function hasPermission($permission)
     {
+        \Log::info('Role hasPermission called for: ' . $permission);
+        \Log::info('Role name: ' . $this->name);
+        \Log::info('Role permissions count: ' . $this->permissions->count());
+        
         if (is_string($permission)) {
-            return $this->permissions->contains('name', $permission);
+            $hasPermission = $this->permissions->contains('name', $permission);
+            \Log::info('String permission check result: ' . ($hasPermission ? 'Found' : 'Not found'));
+            return $hasPermission;
         }
-        return !!$permission->intersect($this->permissions)->count();
+        
+        $hasPermission = !!$permission->intersect($this->permissions)->count();
+        \Log::info('Object permission check result: ' . ($hasPermission ? 'Found' : 'Not found'));
+        return $hasPermission;
     }
 }
