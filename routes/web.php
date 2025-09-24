@@ -75,6 +75,7 @@ Route::middleware('auth')->group(function () {
     // Simulation routes
     Route::middleware('permission:access_simulation')->group(function () {
         Route::get('simulation', [SimulationController::class, 'index'])->name('simulation.index');
+        Route::get('simulation-qty', [SimulationController::class, 'indexQty'])->name('simulation.qty');
         Route::get('simulation/search', [SimulationController::class, 'search'])->name('simulation.search');
         Route::get('simulation/layanan', [SimulationController::class, 'getLayanan'])->name('simulation.layanan');
         Route::get('simulation/list', [SimulationController::class, 'list'])->name('simulation.list');
@@ -83,6 +84,20 @@ Route::middleware('auth')->group(function () {
         Route::get('simulation/{simulation}', [SimulationController::class, 'show'])->name('simulation.show');
         Route::put('simulation/{simulation}', [SimulationController::class, 'update'])->name('simulation.update');
         Route::delete('simulation/{simulation}', [SimulationController::class, 'destroy'])->name('simulation.destroy');
+    });
+
+    // Qty simulation tier preset routes (guarded by qty permission)
+    Route::middleware('permission:access_simulation_qty')->group(function () {
+        Route::get('simulation-qty/presets', [SimulationController::class, 'tierPresets'])->name('simulation.qty.presets');
+        Route::post('simulation-qty/presets', [SimulationController::class, 'storeTierPreset'])->name('simulation.qty.presets.store');
+        Route::put('simulation-qty/presets/{id}', [SimulationController::class, 'updateTierPreset'])->name('simulation.qty.presets.update');
+        Route::delete('simulation-qty/presets/{id}', [SimulationController::class, 'destroyTierPreset'])->name('simulation.qty.presets.destroy');
+        // qty simulation CRUD
+        Route::get('simulation-qty/list', [SimulationController::class, 'listQty'])->name('simulation.qty.list');
+        Route::post('simulation-qty', [SimulationController::class, 'storeQty'])->name('simulation.qty.store');
+        Route::get('simulation-qty/{simulation}', [SimulationController::class, 'showQty'])->name('simulation.qty.show');
+        Route::put('simulation-qty/{simulation}', [SimulationController::class, 'updateQty'])->name('simulation.qty.update');
+        Route::delete('simulation-qty/{simulation}', [SimulationController::class, 'destroyQty'])->name('simulation.qty.destroy');
     });
 
 });

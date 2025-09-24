@@ -242,7 +242,7 @@
                         <i class="fas fa-search absolute right-3 top-2.5 text-gray-400 text-xs"></i>
                     </div>
                 </div>
-                <div class="max-h-[520px] overflow-y-auto divide-y divide-gray-100">
+                <div class="max-h-[50vh] overflow-y-auto divide-y divide-gray-100">
                     <template x-for="item in filteredSavedSimulations" :key="item.id">
                         <div class="px-3 py-2 hover:bg-gray-50">
                             <div class="flex items-start justify-between">

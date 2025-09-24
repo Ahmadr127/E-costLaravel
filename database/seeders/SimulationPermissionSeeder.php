@@ -17,7 +17,12 @@ class SimulationPermissionSeeder extends Seeder
                 'name' => 'access_simulation',
                 'display_name' => 'Akses Simulasi',
                 'description' => 'Mengakses halaman simulasi layanan'
-            ]
+            ],
+            [
+                'name' => 'access_simulation_qty',
+                'display_name' => 'Akses Simulasi Qty',
+                'description' => 'Mengakses halaman simulasi layanan berbasis kuantitas'
+            ],
         ];
 
         foreach ($permissions as $permission) {
@@ -30,9 +35,11 @@ class SimulationPermissionSeeder extends Seeder
         // Attach to admin role if present
         $adminRole = \App\Models\Role::where('name', 'admin')->first();
         if ($adminRole) {
-            $perm = Permission::where('name', 'access_simulation')->first();
-            if ($perm && !$adminRole->permissions()->where('permission_id', $perm->id)->exists()) {
-                $adminRole->permissions()->attach($perm->id);
+            $perms = Permission::whereIn('name', ['access_simulation', 'access_simulation_qty'])->get();
+            foreach ($perms as $perm) {
+                if (!$adminRole->permissions()->where('permission_id', $perm->id)->exists()) {
+                    $adminRole->permissions()->attach($perm->id);
+                }
             }
         }
     }

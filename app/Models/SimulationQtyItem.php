@@ -6,12 +6,14 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class SimulationItem extends Model
+class SimulationQtyItem extends Model
 {
     use HasFactory;
 
+    protected $table = 'simulation_qty_items';
+
     protected $fillable = [
-        'simulation_id',
+        'simulation_qty_id',
         'layanan_id',
         'quantity',
         'kode',
@@ -25,7 +27,7 @@ class SimulationItem extends Model
 
     public function simulation(): BelongsTo
     {
-        return $this->belongsTo(Simulation::class);
+        return $this->belongsTo(SimulationQty::class, 'simulation_qty_id');
     }
 
     public function layanan(): BelongsTo

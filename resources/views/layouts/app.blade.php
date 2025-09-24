@@ -96,6 +96,15 @@
                     </li>
                     @endif
 
+                    @if(auth()->user()->hasPermission('access_simulation_qty'))
+                    <li>
+                        <a href="{{ route('simulation.qty') }}" title="Simulasi (Qty)" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('simulation.qty') ? 'bg-green-800' : '' }}">
+                            <i class="fas fa-layer-group w-5 text-center" :class="sidebarCollapsed ? 'mr-0' : 'mr-3'"></i>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity.duration.150>Simulasi (Qty)</span>
+                        </a>
+                    </li>
+                    @endif
+
                 </ul>
 
                 <!-- User Profile Section -->

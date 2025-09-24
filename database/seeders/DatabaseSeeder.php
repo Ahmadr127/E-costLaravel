@@ -20,6 +20,8 @@ class DatabaseSeeder extends Seeder
             LayananExcelUploadPermissionSeeder::class,
             SimulationPermissionSeeder::class,
             AddLayananPermissionsSeeder::class,
+            // seed default qty tier preset
+            \Database\Seeders\SimulationTierPresetSeeder::class,
         ]);
 
         // Create admin user
