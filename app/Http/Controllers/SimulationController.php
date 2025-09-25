@@ -36,7 +36,7 @@ class SimulationController extends Controller
      */
     public function tierPresets(Request $request): JsonResponse
     {
-        $presets = SimulationTierPreset::orderByDesc('is_default')->orderBy('name')->get(['id','name','tiers','is_default']);
+        $presets = SimulationTierPreset::orderByDesc('is_default')->orderBy('name')->get(['id','name','tiers','simulation_qty','is_default']);
         return response()->json(['success' => true, 'data' => $presets]);
     }
 
@@ -49,6 +49,7 @@ class SimulationController extends Controller
             'tiers.*.min' => 'required|integer|min:1',
             'tiers.*.max' => 'nullable|integer|min:1',
             'tiers.*.percent' => 'required|numeric|min:0|max:100',
+            'simulation_qty' => 'required|integer|min:1',
             'is_default' => 'nullable|boolean',
         ]);
         $this->validateNonOverlappingTiers($validated['tiers']);
@@ -58,6 +59,7 @@ class SimulationController extends Controller
         $preset = SimulationTierPreset::create([
             'name' => $validated['name'],
             'tiers' => $validated['tiers'],
+            'simulation_qty' => $validated['simulation_qty'],
             'is_default' => !empty($validated['is_default']),
             'created_by' => Auth::id(),
         ]);
@@ -74,6 +76,7 @@ class SimulationController extends Controller
             'tiers.*.min' => 'required|integer|min:1',
             'tiers.*.max' => 'nullable|integer|min:1',
             'tiers.*.percent' => 'required|numeric|min:0|max:100',
+            'simulation_qty' => 'required|integer|min:1',
             'is_default' => 'nullable|boolean',
         ]);
         $this->validateNonOverlappingTiers($validated['tiers']);
@@ -83,6 +86,7 @@ class SimulationController extends Controller
         $preset->update([
             'name' => $validated['name'],
             'tiers' => $validated['tiers'],
+            'simulation_qty' => $validated['simulation_qty'],
             'is_default' => !empty($validated['is_default']),
         ]);
         return response()->json(['success' => true]);
@@ -359,16 +363,16 @@ class SimulationController extends Controller
             'notes' => 'nullable|string',
             'tier_preset_id' => 'nullable|exists:simulation_tier_presets,id',
             'default_margin_percent' => 'nullable|numeric|min:0|max:100',
+            'simulation_quantity' => 'required|integer|min:1',
+            'simulation_margin_percent' => 'required|numeric|min:0|max:100',
             'items' => 'required|array|min:1',
             'items.*.layanan_id' => 'required|exists:layanan,id',
-            'items.*.quantity' => 'required|integer|min:1',
             'items.*.kode' => 'required|string',
             'items.*.jenis_pemeriksaan' => 'required|string',
             'items.*.tarif_master' => 'nullable|integer|min:0',
             'items.*.unit_cost' => 'required|integer|min:0',
-            'items.*.margin_value' => 'required|integer|min:0',
-            'items.*.margin_percentage' => 'required|numeric|min:0|max:100',
-            'items.*.total_tarif' => 'required|integer|min:0',
+            'total_unit_cost' => 'required|integer|min:0',
+            'total_margin_value' => 'required|integer|min:0',
             'sum_unit_cost' => 'required|integer|min:0',
             'sum_tarif_master' => 'required|integer|min:0',
             'grand_total' => 'required|integer|min:0',
@@ -378,6 +382,10 @@ class SimulationController extends Controller
             'user_id' => Auth::id(),
             'tier_preset_id' => $request->get('tier_preset_id'),
             'default_margin_percent' => (int) round($request->get('default_margin_percent', 0)),
+            'simulation_quantity' => (int) $validated['simulation_quantity'],
+            'simulation_margin_percent' => (int) round($validated['simulation_margin_percent']),
+            'total_unit_cost' => (int) $validated['total_unit_cost'],
+            'total_margin_value' => (int) $validated['total_margin_value'],
             'name' => $validated['name'],
             'notes' => $validated['notes'] ?? null,
             'sum_unit_cost' => $validated['sum_unit_cost'],
@@ -390,14 +398,10 @@ class SimulationController extends Controller
             SimulationQtyItem::create([
                 'simulation_qty_id' => $simulation->id,
                 'layanan_id' => $item['layanan_id'],
-                'quantity' => (int) $item['quantity'],
                 'kode' => $item['kode'],
                 'jenis_pemeriksaan' => $item['jenis_pemeriksaan'],
                 'tarif_master' => (int) ($item['tarif_master'] ?? 0),
                 'unit_cost' => (int) $item['unit_cost'],
-                'margin_value' => (int) $item['margin_value'],
-                'margin_percentage' => (int) round($item['margin_percentage']),
-                'total_tarif' => (int) $item['total_tarif'],
             ]);
         }
 
@@ -422,6 +426,10 @@ class SimulationController extends Controller
             'user_id' => $simulation->user_id,
             'tier_preset_id' => $simulation->tier_preset_id,
             'default_margin_percent' => $simulation->default_margin_percent,
+            'simulation_quantity' => $simulation->simulation_quantity,
+            'simulation_margin_percent' => $simulation->simulation_margin_percent,
+            'total_unit_cost' => $simulation->total_unit_cost,
+            'total_margin_value' => $simulation->total_margin_value,
             'name' => $simulation->name,
             'notes' => $simulation->notes,
             'sum_unit_cost' => $simulation->sum_unit_cost,
@@ -433,14 +441,10 @@ class SimulationController extends Controller
             'items' => $simulation->items->map(function ($item) {
                 return [
                     'layanan_id' => $item->layanan_id,
-                    'quantity' => $item->quantity,
                     'kode' => $item->kode,
                     'jenis_pemeriksaan' => $item->jenis_pemeriksaan,
                     'tarif_master' => $item->tarif_master,
                     'unit_cost' => $item->unit_cost,
-                    'margin_value' => $item->margin_value,
-                    'margin_percentage' => $item->margin_percentage,
-                    'total_tarif' => $item->total_tarif,
                     'kategori_id' => optional($item->layanan)->kategori_id,
                     'kategori_nama' => optional(optional($item->layanan)->kategori)->nama_kategori,
                 ];
@@ -460,16 +464,16 @@ class SimulationController extends Controller
             'notes' => 'nullable|string',
             'tier_preset_id' => 'nullable|exists:simulation_tier_presets,id',
             'default_margin_percent' => 'nullable|numeric|min:0|max:100',
+            'simulation_quantity' => 'required|integer|min:1',
+            'simulation_margin_percent' => 'required|numeric|min:0|max:100',
             'items' => 'required|array|min:1',
             'items.*.layanan_id' => 'required|exists:layanan,id',
-            'items.*.quantity' => 'required|integer|min:1',
             'items.*.kode' => 'required|string',
             'items.*.jenis_pemeriksaan' => 'required|string',
             'items.*.tarif_master' => 'nullable|integer|min:0',
             'items.*.unit_cost' => 'required|integer|min:0',
-            'items.*.margin_value' => 'required|integer|min:0',
-            'items.*.margin_percentage' => 'required|numeric|min:0|max:100',
-            'items.*.total_tarif' => 'required|integer|min:0',
+            'total_unit_cost' => 'required|integer|min:0',
+            'total_margin_value' => 'required|integer|min:0',
             'sum_unit_cost' => 'required|integer|min:0',
             'sum_tarif_master' => 'required|integer|min:0',
             'grand_total' => 'required|integer|min:0',
@@ -480,6 +484,10 @@ class SimulationController extends Controller
             'notes' => $validated['notes'] ?? null,
             'tier_preset_id' => $request->get('tier_preset_id'),
             'default_margin_percent' => (int) round($request->get('default_margin_percent', 0)),
+            'simulation_quantity' => (int) $validated['simulation_quantity'],
+            'simulation_margin_percent' => (int) round($validated['simulation_margin_percent']),
+            'total_unit_cost' => (int) $validated['total_unit_cost'],
+            'total_margin_value' => (int) $validated['total_margin_value'],
             'sum_unit_cost' => $validated['sum_unit_cost'],
             'sum_tarif_master' => $validated['sum_tarif_master'],
             'grand_total' => $validated['grand_total'],
@@ -491,14 +499,10 @@ class SimulationController extends Controller
             SimulationQtyItem::create([
                 'simulation_qty_id' => $simulation->id,
                 'layanan_id' => $item['layanan_id'],
-                'quantity' => (int) $item['quantity'],
                 'kode' => $item['kode'],
                 'jenis_pemeriksaan' => $item['jenis_pemeriksaan'],
                 'tarif_master' => (int) ($item['tarif_master'] ?? 0),
                 'unit_cost' => (int) $item['unit_cost'],
-                'margin_value' => (int) $item['margin_value'],
-                'margin_percentage' => (int) round($item['margin_percentage']),
-                'total_tarif' => (int) $item['total_tarif'],
             ]);
         }
 

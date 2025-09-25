@@ -15,14 +15,10 @@ class SimulationQtyItem extends Model
     protected $fillable = [
         'simulation_qty_id',
         'layanan_id',
-        'quantity',
         'kode',
         'jenis_pemeriksaan',
         'tarif_master',
         'unit_cost',
-        'margin_value',
-        'margin_percentage',
-        'total_tarif',
     ];
 
     public function simulation(): BelongsTo

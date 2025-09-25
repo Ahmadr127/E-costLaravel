@@ -17,6 +17,7 @@ class SimulationTierPresetSeeder extends Seeder
                     ['min' => 6, 'max' => 10, 'percent' => 15],
                     ['min' => 11, 'max' => null, 'percent' => 10],
                 ],
+                'simulation_qty' => 10,
                 'is_default' => true,
                 'created_by' => null,
             ]);

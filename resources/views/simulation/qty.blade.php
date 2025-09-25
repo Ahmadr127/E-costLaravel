@@ -91,7 +91,17 @@
                         <button type="button" class="px-2 py-1 text-xs rounded-md border border-gray-300 hover:bg-gray-50" @click="openTierCreator()">Baru</button>
                     </div>
                 </div>
-                <!-- Strategi & aksi dihapus: margin diturunkan dari preset + default margin -->
+                <!-- PRESET-BASED QTY SIMULATION: Qty from preset -->
+                <div class="flex items-center gap-4">
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Qty Simulasi (dari Preset)</label>
+                        <div class="w-24 px-2 py-1 bg-gray-100 rounded-md text-xs text-center font-medium" x-text="simulationQuantity"></div>
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1">Margin (%)</label>
+                        <div class="w-20 px-2 py-1 bg-gray-100 rounded-md text-xs text-center font-medium" x-text="simulationMarginPercent.toFixed(2) + '%'"></div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -102,10 +112,8 @@
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kode</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jenis Pemeriksaan</th>
-                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Qty</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarif Master</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
-                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aksi</th>
                     </tr>
                 </thead>
@@ -119,14 +127,10 @@
                                     <span x-text="result.jenis_pemeriksaan"></span>
                                 </div>
                             </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900">
-                                <input type="number" min="1" step="1" class="w-20 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" :value="result.quantity" @input="onQtyChange(result, $event.target.value)">
-                            </td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="'Rp ' + formatNumber(result.tarif_master || 0)"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900">
                                 <input type="text" inputmode="numeric" class="w-28 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" :value="formatNumber(result.unit_cost)" @input="onUnitCostInput(result, $event)" @focus="$event.target.select()" @blur="onUnitCostBlur(result, $event)">
                             </td>
-                            <td class="px-3 py-2 whitespace-nowrap text-xs font-semibold text-gray-900" x-text="'Rp ' + formatNumber(result.subtotal || 0)"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-500">
                                 <button type="button" class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-1.5 py-1 text-xs bg-red-600 text-white hover:bg-red-700 focus:ring-red-500" @click="if(confirm('Hapus layanan ini dari simulasi?')) removeFromSimulation(index)">
                                     <i class="fas fa-trash"></i>
@@ -137,11 +141,25 @@
                 </tbody>
                 <tfoot class="bg-gray-50">
                     <tr>
-                        <td class="px-3 py-2 text-xs text-gray-500" colspan="3"></td>
+                        <td class="px-3 py-2 text-xs text-gray-500" colspan="2"></td>
                         <td class="px-3 py-2 text-xs text-gray-500 text-right font-medium">Total:</td>
                         <td class="px-3 py-2 text-xs text-gray-500 font-medium" x-text="'Rp ' + formatNumber(sumTarifMaster)"></td>
-                        <td class="px-3 py-2 text-xs text-gray-500 font-medium" x-text="'Rp ' + formatNumber(sumUnitCost)"></td>
-                        <td class="px-3 py-2 text-xs text-gray-500 font-semibold text-red-600" x-text="'Rp ' + formatNumber(grandTotal)"></td>
+                        <td class="px-3 py-2 text-xs text-gray-500 font-medium" x-text="'Rp ' + formatNumber(totalUnitCost)"></td>
+                        <td class="px-3 py-2 text-xs text-gray-500"></td>
+                    </tr>
+                    <!-- PRESET-BASED QTY SIMULATION: Simulation-level totals -->
+                    <tr class="bg-green-50">
+                        <td class="px-3 py-2 text-xs text-gray-500" colspan="2"></td>
+                        <td class="px-3 py-2 text-xs text-gray-700 font-medium">Simulasi:</td>
+                        <td class="px-3 py-2 text-xs text-gray-700 font-medium" x-text="'Qty: ' + simulationQuantity + ' (Preset)'"></td>
+                        <td class="px-3 py-2 text-xs text-gray-700 font-medium" x-text="'Margin: ' + simulationMarginPercent.toFixed(2) + '%'"></td>
+                        <td class="px-3 py-2 text-xs text-gray-500"></td>
+                    </tr>
+                    <tr class="bg-red-50">
+                        <td class="px-3 py-2 text-xs text-gray-500" colspan="2"></td>
+                        <td class="px-3 py-2 text-xs text-red-700 font-semibold">Grand Total:</td>
+                        <td class="px-3 py-2 text-xs text-red-700 font-semibold" x-text="'Rp ' + formatNumber(grandTotal)"></td>
+                        <td class="px-3 py-2 text-xs text-red-700 font-semibold" x-text="'Margin: Rp ' + formatNumber(totalMarginValue)"></td>
                         <td class="px-3 py-2 text-xs text-gray-500"></td>
                     </tr>
                 </tfoot>
@@ -203,15 +221,7 @@
                     </button>
                     <h3 class="text-sm font-semibold text-gray-900">Rincian Perhitungan per Qty (berdasarkan preset)</h3>
                 </div>
-                <div x-show="showBreakdown" class="flex items-center gap-2" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 transform scale-95" x-transition:enter-end="opacity-100 transform scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 transform scale-100" x-transition:leave-end="opacity-0 transform scale-95">
-                    <label class="text-xs text-gray-600">Layanan:</label>
-                    <select x-model="selectedServiceForBreakdown" @change="updateBreakdownForSelectedService()" class="px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                        <option value="">Pilih layanan</option>
-                        <template x-for="service in simulationResults" :key="service.id">
-                            <option :value="service.id" x-text="service.kode + ' - ' + service.jenis_pemeriksaan"></option>
-                        </template>
-                    </select>
-                </div>
+                <!-- PRESET-BASED QTY SIMULATION: Breakdown is now for entire simulation -->
             </div>
             <div x-show="showBreakdown" class="flex items-center gap-2" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 transform scale-95" x-transition:enter-end="opacity-100 transform scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 transform scale-100" x-transition:leave-end="opacity-0 transform scale-95">
                 <template x-if="defaultTierUsed">
@@ -278,6 +288,10 @@
                 <div>
                     <label class="block text-xs text-gray-600 mb-1">Nama Preset</label>
                     <input type="text" x-model="tierForm.name" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Contoh: Default Qty">
+                </div>
+                <div>
+                    <label class="block text-xs text-gray-600 mb-1">Qty Simulasi</label>
+                    <input type="number" min="1" step="1" x-model.number="tierForm.simulation_qty" class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" placeholder="Masukkan qty simulasi">
                 </div>
                 <div>
                     <label class="block text-xs text-gray-600 mb-1">Daftar Tier</label>

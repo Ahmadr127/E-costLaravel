@@ -12,6 +12,7 @@ class SimulationTierPreset extends Model
     protected $fillable = [
         'name',
         'tiers',
+        'simulation_qty',
         'is_default',
         'created_by',
     ];

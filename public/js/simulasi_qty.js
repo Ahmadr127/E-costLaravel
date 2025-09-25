@@ -9,30 +9,31 @@ window.simulationQtyApp = function simulationQtyApp() {
         searchQuery: '',
         searchResults: [],
         simulationResults: [],
+        // Simulation-level qty and margin (NEW ARCHITECTURE)
+        simulationQuantity: 1,
+        simulationMarginPercent: 0,
+        totalUnitCost: 0,
+        totalMarginValue: 0,
         grandTotal: 0,
         sumUnitCost: 0,
         sumTarifMaster: 0,
+        // Preset-based qty simulation
+        selectedPresetQty: null,
         searchTimeout: null,
         isSearching: false,
         showDropdown: false,
-        // single-item mode (force only one layanan at a time)
-        singleMode: false,
         // presets & tiers (qty only)
         tierPresets: [],
         activePresetId: '',
         activeTiers: defaultTiers.slice(),
         showTierModal: false,
-        tierForm: { id: null, name: '', is_default: false, tiers: defaultTiers.slice() },
-        // strategy removed from UI; keep step as internal default for single subtotal row
-        strategy: 'step',
+        tierForm: { id: null, name: '', simulation_qty: 1, is_default: false, tiers: defaultTiers.slice() },
         // editable default margin percent for uncovered ranges
         defaultMarginPercent: 0,
-        // breakdown data for current item
+        // breakdown data for simulation-level calculation
         breakdownRows: [],
         defaultTierUsed: false,
         defaultTierPercent: 0,
-        // selected service for breakdown display
-        selectedServiceForBreakdown: '',
         // breakdown visibility toggle
         showBreakdown: false,
 
@@ -102,34 +103,20 @@ window.simulationQtyApp = function simulationQtyApp() {
                     tarif_master: Math.round(Number(layanan.tarif_master) || 0),
                     unit_cost: Math.round(Number(layanan.unit_cost) || 0),
                 };
-                this.recalcItem(this.simulationResults[existingIndex]);
-                this.updateGrandTotal();
+                this.updateSimulationTotals();
                 this.searchResults = [];
                 this.searchQuery = '';
                 this.showDropdown = false;
                 return;
             }
 
-            const qty = 1;
-            const unit = Math.round(Number(layanan.unit_cost) || 0);
-            const marginPct = this.getTierPercent(qty) / 100;
-            const marginValue = Math.round(unit * marginPct);
-            const totalTarif = unit + marginValue; // per unit
-            const subtotal = this.computeSubtotal(unit, qty);
-
+            // NEW ARCHITECTURE: Services are added without individual qty/margin
             const item = {
                 ...layanan,
                 id: layanan.id,
                 layanan_id: layanan.id,
-                quantity: qty,
-                unit_cost: unit,
+                unit_cost: Math.round(Number(layanan.unit_cost) || 0),
                 tarif_master: Math.round(Number(layanan.tarif_master) || 0),
-                marginPercentage: marginPct,
-                marginValue: marginValue,
-                totalTarif: totalTarif,
-                subtotal: subtotal,
-                selected: false,
-                marginLocked: false,
             };
             
             this.simulationResults.push(item);
@@ -137,14 +124,7 @@ window.simulationQtyApp = function simulationQtyApp() {
             this.searchResults = [];
             this.searchQuery = '';
             this.showDropdown = false;
-            this.updateGrandTotal();
-            
-            // Auto-select first service for breakdown if none selected (but don't show breakdown)
-            if (!this.selectedServiceForBreakdown && this.simulationResults.length > 0) {
-                this.selectedServiceForBreakdown = this.simulationResults[0].id;
-                // Don't automatically show breakdown when adding services
-                // this.updateBreakdownForSelectedService();
-            }
+            this.updateSimulationTotals();
         },
 
         getTierPercent(qty) {
@@ -156,80 +136,75 @@ window.simulationQtyApp = function simulationQtyApp() {
             return last ? last.percent : 0;
         },
 
-        onQtyChange(item, value) {
-            const qty = Math.max(1, Math.floor(Number(value) || 1));
-            item.quantity = qty;
-            // if not locked, recompute from tier
-            if (!item.marginLocked) {
-                item.marginPercentage = this.getTierPercent(qty) / 100;
-            }
-            this.recalcItem(item);
-            this.updateGrandTotal();
+        // NEW ARCHITECTURE: Simulation-level calculation functions
+        updateSimulationTotals() {
+            // Calculate total unit cost from all services
+            this.totalUnitCost = this.simulationResults.reduce((sum, item) => 
+                sum + Math.round(Number(item.unit_cost) || 0), 0);
             
-            // Update breakdown if this is the selected service
-            if (String(this.selectedServiceForBreakdown) === String(item.id)) {
-                this.updateBreakdownForSelectedService();
+            // Calculate sum of tarif master
+            this.sumTarifMaster = this.simulationResults.reduce((sum, item) => 
+                sum + Math.round(Number(item.tarif_master) || 0), 0);
+            
+            // Calculate simulation margin based on tier preset
+            this.simulationMarginPercent = this.getTierPercent(this.simulationQuantity);
+            
+            // Calculate total margin value
+            this.totalMarginValue = Math.round(this.totalUnitCost * this.simulationMarginPercent / 100);
+            
+            // Calculate grand total: (total unit cost + margin) * simulation quantity
+            this.grandTotal = (this.totalUnitCost + this.totalMarginValue) * this.simulationQuantity;
+            
+            // Update breakdown for simulation-level calculation
+            this.updateSimulationBreakdown();
+        },
+
+        // PRESET-BASED QTY SIMULATION: Apply preset qty when preset changes
+        applyPresetQty() {
+            const preset = this.tierPresets.find(p => String(p.id) === String(this.activePresetId));
+            if (preset && preset.simulation_qty) {
+                this.simulationQuantity = preset.simulation_qty;
+                this.selectedPresetQty = preset.simulation_qty;
+                this.updateSimulationTotals();
             }
         },
 
-        // margin is now derived from preset; manual input removed from UI
+        onSimulationQtyChange(value) {
+            this.simulationQuantity = Math.max(1, Math.floor(Number(value) || 1));
+            this.updateSimulationTotals();
+        },
 
+        onSimulationMarginChange(value) {
+            this.simulationMarginPercent = Math.max(0, Math.min(100, Number(value) || 0));
+            this.updateSimulationTotals();
+        },
+
+        // NEW ARCHITECTURE: Individual service unit cost editing
         onUnitCostInput(item, evt) {
             const raw = evt.target.value;
             const val = this.unformatNumberString(raw);
             item.unit_cost = Math.round(Math.max(0, val));
-            this.recalcItem(item);
-            this.updateGrandTotal();
+            this.updateSimulationTotals();
             evt.target.value = this.formatNumber(item.unit_cost);
-            
-            // Update breakdown if this is the selected service
-            if (String(this.selectedServiceForBreakdown) === String(item.id)) {
-                this.updateBreakdownForSelectedService();
-            }
         },
 
         onUnitCostBlur(item, evt) {
             evt.target.value = this.formatNumber(item.unit_cost);
         },
 
-        recalcItem(item) {
-            const unit = Math.round(Number(item.unit_cost) || 0);
-            const qty = Math.max(1, Math.floor(Number(item.quantity) || 1));
-            item.unit_cost = unit;
-            item.marginValue = Math.round(unit * (Number(item.marginPercentage) || 0));
-            item.totalTarif = unit + item.marginValue; // per unit
-            item.subtotal = this.strategy === 'cumulative' ? this.computeSubtotal(unit, qty) : item.totalTarif * qty;
-            // update breakdown only if this is the selected service
-            if (String(this.selectedServiceForBreakdown) === String(item.id)) {
-                const breakdown = this.buildBreakdown(unit, qty);
-                this.breakdownRows = breakdown.rows;
-                this.defaultTierUsed = breakdown.defaultUsed;
-                this.defaultTierPercent = breakdown.defaultPercent;
-            }
-        },
-
-        updateBreakdownForSelectedService() {
-            if (!this.selectedServiceForBreakdown) {
+        updateSimulationBreakdown() {
+            if (this.simulationResults.length === 0) {
                 this.breakdownRows = [];
                 this.defaultTierUsed = false;
                 this.defaultTierPercent = 0;
                 return;
             }
             
-            const selectedService = this.simulationResults.find(s => String(s.id) === String(this.selectedServiceForBreakdown));
-            if (selectedService) {
-                // Ensure the service has the latest calculations
-                this.recalcItem(selectedService);
-                const breakdown = this.buildBreakdown(selectedService.unit_cost, selectedService.quantity);
+            // Build breakdown for simulation-level calculation
+            const breakdown = this.buildSimulationBreakdown(this.totalUnitCost, this.simulationQuantity);
                 this.breakdownRows = breakdown.rows;
                 this.defaultTierUsed = breakdown.defaultUsed;
                 this.defaultTierPercent = breakdown.defaultPercent;
-            } else {
-                // Clear breakdown if selected service not found
-                this.breakdownRows = [];
-                this.defaultTierUsed = false;
-                this.defaultTierPercent = 0;
-            }
         },
 
         toggleBreakdownVisibility() {
@@ -237,76 +212,32 @@ window.simulationQtyApp = function simulationQtyApp() {
             
             // If showing breakdown, ensure we have data to display
             if (this.showBreakdown && this.simulationResults.length > 0) {
-                // If no service selected or selected service not found, select first service
-                if (!this.selectedServiceForBreakdown || !this.simulationResults.find(s => String(s.id) === String(this.selectedServiceForBreakdown))) {
-                    this.selectedServiceForBreakdown = this.simulationResults[0].id;
-                }
                 // Always update breakdown to ensure fresh data is displayed
-                this.updateBreakdownForSelectedService();
+                this.updateSimulationBreakdown();
             }
         },
 
-        applyDynamicMarginToAll() {
-            let changed = 0; const EPS = 1e-6;
-            this.simulationResults.forEach(item => {
-                if (item.marginLocked) return;
-                const nextPct = this.getTierPercent(item.quantity);
-                const fraction = Number(nextPct) / 100;
-                const current = Number(item.marginPercentage) || 0;
-                const isChanged = Math.abs(current - fraction) > EPS;
-                item.marginPercentage = fraction; // normalize
-                this.recalcItem(item);
-                if (isChanged) changed++;
-            });
-            this.updateGrandTotal();
-            this.showNotification(changed > 0 ? `Margin dinamis diterapkan ke ${changed} item` : 'Tidak ada perubahan', changed > 0 ? 'success' : 'info');
-        },
-
-        applyDynamicMarginToSelected() {
-            // In single mode, treat as apply to all
-            if (this.singleMode) { this.applyDynamicMarginToAll(); return; }
-            let changed = 0; const EPS = 1e-6;
-            this.simulationResults.forEach(item => {
-                if (!item.selected || item.marginLocked) return;
-                const nextPct = this.getTierPercent(item.quantity);
-                const fraction = Number(nextPct) / 100;
-                const current = Number(item.marginPercentage) || 0;
-                const isChanged = Math.abs(current - fraction) > EPS;
-                item.marginPercentage = fraction;
-                this.recalcItem(item);
-                if (isChanged) changed++;
-            });
-            this.updateGrandTotal();
-            this.showNotification(changed > 0 ? `Margin dinamis diterapkan ke ${changed} item terpilih` : 'Tidak ada perubahan', changed > 0 ? 'success' : 'info');
-        },
-
-        updateGrandTotal() {
-            this.grandTotal = this.simulationResults.reduce((sum, item) => sum + (Math.round(Number(item.subtotal) || 0)), 0);
-            this.sumUnitCost = this.simulationResults.reduce((sum, item) => sum + (Math.round(Number(item.unit_cost) || 0) * Math.max(1, Math.floor(Number(item.quantity) || 1))), 0);
-            this.sumTarifMaster = this.simulationResults.reduce((sum, item) => sum + (Math.round(Number(item.tarif_master) || 0) * Math.max(1, Math.floor(Number(item.quantity) || 1))), 0);
-        },
+        // NEW ARCHITECTURE: Dynamic margin is now applied at simulation level automatically
 
         removeFromSimulation(index) {
-            const removedItem = this.simulationResults[index];
             this.simulationResults.splice(index, 1);
-            this.updateGrandTotal();
-            
-            // If the removed item was selected for breakdown, clear selection
-            if (String(this.selectedServiceForBreakdown) === String(removedItem.id)) {
-                this.selectedServiceForBreakdown = '';
-                this.breakdownRows = [];
-                this.defaultTierUsed = false;
-            }
+            this.updateSimulationTotals();
         },
 
         resetSimulation() {
             this.simulationResults = [];
+            this.simulationQuantity = 1;
+            this.simulationMarginPercent = 0;
+            this.totalUnitCost = 0;
+            this.totalMarginValue = 0;
             this.grandTotal = 0;
-            this.selectedServiceForBreakdown = '';
+            this.selectedPresetQty = null;
             this.breakdownRows = [];
             this.defaultTierUsed = false;
             this.showBreakdown = false;
-            this.clearSelection();
+            
+            // Apply preset qty
+            this.applyPresetQty();
         },
 
         // Notifications (copy from base)
@@ -363,7 +294,7 @@ window.simulationQtyApp = function simulationQtyApp() {
                 const data = await res.json();
                 const sim = data.data;
                 const items = sim.items || [];
-                if (items.length === 0) { this.simulationResults = []; this.updateGrandTotal(); return; }
+                if (items.length === 0) { this.simulationResults = []; this.updateSimulationTotals(); return; }
                 
                 // set preset and default margin from saved simulation
                 if (sim.tier_preset_id != null) {
@@ -374,6 +305,12 @@ window.simulationQtyApp = function simulationQtyApp() {
                     this.defaultMarginPercent = Number(sim.default_margin_percent) || 0;
                 }
                 
+                // NEW ARCHITECTURE: Load simulation-level data
+                this.simulationQuantity = sim.simulation_quantity || 1;
+                this.simulationMarginPercent = sim.simulation_margin_percent || 0;
+                this.totalUnitCost = sim.total_unit_cost || 0;
+                this.totalMarginValue = sim.total_margin_value || 0;
+                
                 this.simulationResults = items.map(item => ({
                     id: item.layanan_id,
                     layanan_id: item.layanan_id,
@@ -381,25 +318,12 @@ window.simulationQtyApp = function simulationQtyApp() {
                     jenis_pemeriksaan: item.jenis_pemeriksaan,
                     tarif_master: item.tarif_master,
                     unit_cost: item.unit_cost,
-                    quantity: item.quantity || 1,
-                    marginPercentage: (item.margin_percentage || item.marginPercentage || 0) / 100,
-                    marginValue: item.margin_value || 0,
-                    totalTarif: item.total_tarif || 0,
-                    selected: false,
-                    marginLocked: false,
                 }));
                 
-                this.recalcAll();
+                this.updateSimulationTotals();
                 this.activeSimulationId = sim.id;
                 this.saveName = sim.name || '';
                 this.isEditingExisting = true;
-                
-                // Auto-select first service for breakdown if available (but don't show breakdown)
-                if (this.simulationResults.length > 0) {
-                    this.selectedServiceForBreakdown = this.simulationResults[0].id;
-                    // Don't automatically show breakdown when loading
-                    // this.updateBreakdownForSelectedService();
-                }
             } catch { this.showNotification('Gagal memuat simulasi', 'warning'); }
         },
 
@@ -430,19 +354,19 @@ window.simulationQtyApp = function simulationQtyApp() {
                 notes: '',
                 tier_preset_id: this.activePresetId || null,
                 default_margin_percent: Number(this.defaultMarginPercent || 0),
+                simulation_quantity: this.simulationQuantity,
+                simulation_margin_percent: this.simulationMarginPercent,
+                total_unit_cost: this.totalUnitCost,
+                total_margin_value: this.totalMarginValue,
                 sum_unit_cost: this.sumUnitCost,
                 sum_tarif_master: this.sumTarifMaster,
                 grand_total: this.grandTotal,
                 items: this.simulationResults.map(item => ({
                     layanan_id: item.layanan_id || item.id,
-                    quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
                     kode: item.kode,
                     jenis_pemeriksaan: item.jenis_pemeriksaan,
                     tarif_master: Math.round(Number(item.tarif_master) || 0),
                     unit_cost: Math.round(Number(item.unit_cost) || 0),
-                    margin_value: Math.round(Number(item.marginValue) || 0),
-                    margin_percentage: (Number(item.marginPercentage) || 0) * 100,
-                    total_tarif: Math.round(Number(item.totalTarif) || 0)
                 }))
             };
             // Jangan replace otomatis; hanya update jika user sedang mengedit sim yang dimuat
@@ -499,21 +423,9 @@ window.simulationQtyApp = function simulationQtyApp() {
             document.body.removeChild(link);
         },
 
-        // selection helpers (no-op in single mode)
-        toggleSelectAll(_checked) {},
-        updateSelectedCount() {},
-        clearSelection() {},
-
-        // lock toggle
-        toggleLock(item) { item.marginLocked = !item.marginLocked; },
-
-        // strategy change removed (no-op)
-        onStrategyChange() { this.recalcAll(); },
-
-        // default margin changed by user in UI
+        // NEW ARCHITECTURE: Default margin changed by user in UI
         onDefaultMarginChange() { 
-            this.recalcAll(); 
-            this.updateBreakdownForSelectedService();
+            this.updateSimulationTotals();
         },
 
         // Preset APIs
@@ -529,7 +441,9 @@ window.simulationQtyApp = function simulationQtyApp() {
             if (preset) {
                 this.activePresetId = preset.id;
                 this.activeTiers = (preset.tiers || []).map(normalizeTier);
-                this.recalcAll();
+                
+                // Apply preset qty
+                this.applyPresetQty();
             }
         },
 
@@ -537,19 +451,32 @@ window.simulationQtyApp = function simulationQtyApp() {
             const preset = this.tierPresets.find(p => String(p.id) === String(this.activePresetId));
             if (!preset) return;
             this.activeTiers = (preset.tiers || []).map(normalizeTier);
-            this.recalcAll();
-            this.updateBreakdownForSelectedService();
+            
+            // Apply preset qty
+            this.applyPresetQty();
         },
 
         openTierEditor() {
             const preset = this.tierPresets.find(p => String(p.id) === String(this.activePresetId));
             if (!preset) return;
-            this.tierForm = { id: preset.id, name: preset.name, is_default: !!preset.is_default, tiers: (preset.tiers || []).map(cloneTier) };
+            this.tierForm = { 
+                id: preset.id, 
+                name: preset.name, 
+                simulation_qty: preset.simulation_qty || 1,
+                is_default: !!preset.is_default, 
+                tiers: (preset.tiers || []).map(cloneTier) 
+            };
             this.showTierModal = true;
         },
 
         openTierCreator() {
-            this.tierForm = { id: null, name: '', is_default: false, tiers: defaultTiers.slice().map(cloneTier) };
+            this.tierForm = { 
+                id: null, 
+                name: '', 
+                simulation_qty: 1,
+                is_default: false, 
+                tiers: defaultTiers.slice().map(cloneTier) 
+            };
             this.showTierModal = true;
         },
 
@@ -559,8 +486,14 @@ window.simulationQtyApp = function simulationQtyApp() {
         removeTier(idx) { this.tierForm.tiers.splice(idx, 1); },
 
         async savePreset() {
-            const payload = { name: (this.tierForm.name || '').trim(), is_default: !!this.tierForm.is_default, tiers: (this.tierForm.tiers || []).map(normalizeTier) };
+            const payload = { 
+                name: (this.tierForm.name || '').trim(), 
+                simulation_qty: this.tierForm.simulation_qty || 1,
+                is_default: !!this.tierForm.is_default, 
+                tiers: (this.tierForm.tiers || []).map(normalizeTier) 
+            };
             if (!payload.name || payload.tiers.length === 0) { this.showNotification('Nama dan tier wajib diisi', 'warning'); return; }
+            if (!payload.simulation_qty || payload.simulation_qty < 1) { this.showNotification('Qty simulasi wajib diisi minimal 1', 'warning'); return; }
             const method = this.tierForm.id ? 'PUT' : 'POST';
             const url = this.tierForm.id ? `${(window.SIMULATION_QTY_PRESETS_URL || '/simulation-qty/presets')}/${this.tierForm.id}` : (window.SIMULATION_QTY_PRESETS_URL || '/simulation-qty/presets');
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': window.CSRF_TOKEN }, body: JSON.stringify(payload) });
@@ -585,36 +518,12 @@ window.simulationQtyApp = function simulationQtyApp() {
             this.showNotification('Preset dihapus', 'success');
         },
 
-        recalcAll() { this.simulationResults.forEach(i => this.onQtyChange(i, i.quantity)); this.updateGrandTotal(); },
+        // NEW ARCHITECTURE: recalcAll is replaced by updateSimulationTotals
 
-        // cumulative subtotal helper
-        computeSubtotal(unit, qty) {
-            if (this.strategy !== 'cumulative') {
-                const pct = this.getTierPercent(qty) / 100;
-                return (unit + Math.round(unit * pct)) * qty;
-            }
-            let subtotal = 0;
-            const tiers = (this.activeTiers || defaultTiers).map(normalizeTier);
-            for (const t of tiers) {
-                const min = t.min;
-                const max = t.max == null ? Infinity : t.max;
-                const from = Math.max(min, 1);
-                const to = Math.min(max, qty);
-                const count = Math.max(0, to - from + 1);
-                if (count > 0) {
-                    const pricePerUnit = unit + Math.round(unit * (Number(t.percent) || 0) / 100);
-                    subtotal += pricePerUnit * count;
-                }
-            }
-            if (subtotal === 0) {
-                const pct = this.getTierPercent(qty) / 100;
-                subtotal = (unit + Math.round(unit * pct)) * qty;
-            }
-            return subtotal;
-        },
+        // NEW ARCHITECTURE: computeSubtotal is no longer needed for individual services
 
-        // Build breakdown rows per tier for the current qty
-        buildBreakdown(unit, qty) {
+        // NEW ARCHITECTURE: Build breakdown for simulation-level calculation
+        buildSimulationBreakdown(totalUnitCost, simulationQty) {
             const rows = [];
             const tiersRaw = (this.activeTiers || defaultTiers).map(normalizeTier).filter(t => t.min >= 1 && (t.max == null || t.max >= t.min));
             // sort by min asc
@@ -632,45 +541,77 @@ window.simulationQtyApp = function simulationQtyApp() {
                 const max = t.max == null ? Infinity : t.max;
                 // gap before this tier
                 if (cursor < t.min) {
-                    const gapTo = Math.min(t.min - 1, qty);
+                    const gapTo = Math.min(t.min - 1, simulationQty);
                     if (gapTo >= cursor) {
                         const count = gapTo - cursor + 1;
-                        const unitPrice = unit + Math.round(unit * defaultPercent / 100);
-                        const subtotal = unitPrice * count;
-                        rows.push({ range: `${cursor}-${gapTo}`, qty: count, marginPct: defaultPercent, unitCost: unit, unitPrice, subtotal, isDefault: true });
+                        const marginValue = Math.round(totalUnitCost * defaultPercent / 100);
+                        const subtotal = (totalUnitCost + marginValue) * count;
+                        rows.push({ 
+                            range: `${cursor}-${gapTo}`, 
+                            qty: count, 
+                            marginPct: defaultPercent, 
+                            unitCost: totalUnitCost, 
+                            unitPrice: totalUnitCost + marginValue, 
+                            subtotal, 
+                            isDefault: true 
+                        });
                         defaultUsed = true; totalQty += count; totalSubtotal += subtotal; cursor = gapTo + 1;
                     }
                 }
-                if (cursor > qty) break;
+                if (cursor > simulationQty) break;
                 // coverage of this tier
                 const from = Math.max(cursor, t.min);
-                const to = Math.min(max, qty);
+                const to = Math.min(max, simulationQty);
                 if (to >= from) {
                     const count = to - from + 1;
                     const marginPct = Number(t.percent) || 0;
-                    const unitPrice = unit + Math.round(unit * marginPct / 100);
-                    const subtotal = unitPrice * count;
-                    rows.push({ range: t.max == null ? `${from}+` : `${from}-${to}`, qty: count, marginPct, unitCost: unit, unitPrice, subtotal, isDefault: false });
+                    const marginValue = Math.round(totalUnitCost * marginPct / 100);
+                    const subtotal = (totalUnitCost + marginValue) * count;
+                    rows.push({ 
+                        range: t.max == null ? `${from}+` : `${from}-${to}`, 
+                        qty: count, 
+                        marginPct, 
+                        unitCost: totalUnitCost, 
+                        unitPrice: totalUnitCost + marginValue, 
+                        subtotal, 
+                        isDefault: false 
+                    });
                     totalQty += count; totalSubtotal += subtotal; cursor = to + 1;
                 }
-                if (cursor > qty) break;
+                if (cursor > simulationQty) break;
             }
 
             // tail after last tier
-            if (cursor <= qty) {
-                const count = qty - cursor + 1;
-                const unitPrice = unit + Math.round(unit * defaultPercent / 100);
-                const subtotal = unitPrice * count;
-                rows.push({ range: `${cursor}-${qty}`, qty: count, marginPct: defaultPercent, unitCost: unit, unitPrice, subtotal, isDefault: true });
+            if (cursor <= simulationQty) {
+                const count = simulationQty - cursor + 1;
+                const marginValue = Math.round(totalUnitCost * defaultPercent / 100);
+                const subtotal = (totalUnitCost + marginValue) * count;
+                rows.push({ 
+                    range: `${cursor}-${simulationQty}`, 
+                    qty: count, 
+                    marginPct: defaultPercent, 
+                    unitCost: totalUnitCost, 
+                    unitPrice: totalUnitCost + marginValue, 
+                    subtotal, 
+                    isDefault: true 
+                });
                 defaultUsed = true; totalQty += count; totalSubtotal += subtotal;
             }
 
             // if no tiers defined, cover full range with defaultPercent (0 or set by policy)
             if (rows.length === 0) {
-                const unitPrice = unit + Math.round(unit * defaultPercent / 100);
-                const subtotal = unitPrice * qty;
-                rows.push({ range: `1-${qty}`, qty, marginPct: defaultPercent, unitCost: unit, unitPrice, subtotal, isDefault: true });
-                defaultUsed = true; totalQty = qty; totalSubtotal = subtotal;
+                const marginValue = Math.round(totalUnitCost * defaultPercent / 100);
+                const subtotal = (totalUnitCost + marginValue) * simulationQty;
+                rows.push({ 
+                    range: `1-${simulationQty}`, 
+                    qty: simulationQty, 
+                    marginPct: defaultPercent, 
+                    unitCost: totalUnitCost, 
+                    unitPrice: totalUnitCost + marginValue, 
+                    subtotal, 
+                    isDefault: true 
+                });
+                defaultUsed = true; totalQty = simulationQty; totalSubtotal = subtotal;
             }
 
             rows.totalQty = totalQty; rows.totalSubtotal = totalSubtotal;
