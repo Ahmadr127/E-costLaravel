@@ -40,6 +40,14 @@ class SimulationController extends Controller
         return response()->json(['success' => true, 'data' => $presets]);
     }
 
+    /**
+     * Presets master page (single global preset management)
+     */
+    public function presetsPage()
+    {
+        return view('simulation.presets');
+    }
+
     public function storeTierPreset(Request $request): JsonResponse
     {
         $this->authorizeTierAccess();
@@ -49,18 +57,17 @@ class SimulationController extends Controller
             'tiers.*.min' => 'required|integer|min:1',
             'tiers.*.max' => 'nullable|integer|min:1',
             'tiers.*.percent' => 'required|numeric|min:0|max:100',
-            'simulation_qty' => 'required|integer|min:1',
+            'simulation_qty' => 'required|integer|min:0',
             'is_default' => 'nullable|boolean',
         ]);
         $this->validateNonOverlappingTiers($validated['tiers']);
-        if (!empty($validated['is_default'])) {
-            SimulationTierPreset::query()->update(['is_default' => false]);
-        }
+        // Single global preset policy: replace or create only one record and set default true
+        SimulationTierPreset::query()->delete();
         $preset = SimulationTierPreset::create([
             'name' => $validated['name'],
             'tiers' => $validated['tiers'],
             'simulation_qty' => $validated['simulation_qty'],
-            'is_default' => !empty($validated['is_default']),
+            'is_default' => true,
             'created_by' => Auth::id(),
         ]);
         return response()->json(['success' => true, 'data' => $preset], 201);
@@ -76,18 +83,17 @@ class SimulationController extends Controller
             'tiers.*.min' => 'required|integer|min:1',
             'tiers.*.max' => 'nullable|integer|min:1',
             'tiers.*.percent' => 'required|numeric|min:0|max:100',
-            'simulation_qty' => 'required|integer|min:1',
+            'simulation_qty' => 'required|integer|min:0',
             'is_default' => 'nullable|boolean',
         ]);
         $this->validateNonOverlappingTiers($validated['tiers']);
-        if (!empty($validated['is_default'])) {
-            SimulationTierPreset::query()->update(['is_default' => false]);
-        }
+        // Single global preset policy: keep this as the only preset and default
+        SimulationTierPreset::where('id', '!=', $preset->id)->delete();
         $preset->update([
             'name' => $validated['name'],
             'tiers' => $validated['tiers'],
             'simulation_qty' => $validated['simulation_qty'],
-            'is_default' => !empty($validated['is_default']),
+            'is_default' => true,
         ]);
         return response()->json(['success' => true]);
     }
@@ -116,6 +122,7 @@ class SimulationController extends Controller
     public function destroyTierPreset($id): JsonResponse
     {
         $this->authorizeTierAccess();
+        // Single global preset policy: delete all presets
         $preset = SimulationTierPreset::findOrFail($id);
         $preset->delete();
         return response()->json(['success' => true]);
@@ -128,11 +135,24 @@ class SimulationController extends Controller
         }
     }
 
+    private function authorizeAnySimulationAccess(): void
+    {
+        $user = Auth::user();
+        if (!$user) {
+            abort(403, 'Unauthorized');
+        }
+        $has = $user->hasPermission('access_simulation') || $user->hasPermission('access_simulation_qty');
+        if (!$has) {
+            abort(403, 'Unauthorized');
+        }
+    }
+
     /**
      * Search layanan for simulation.
      */
     public function search(Request $request): JsonResponse
     {
+        $this->authorizeAnySimulationAccess();
         $query = Layanan::with('kategori')
             ->where('is_active', true);
 
@@ -155,7 +175,7 @@ class SimulationController extends Controller
                     'jenis_pemeriksaan' => $item->jenis_pemeriksaan,
                     'tarif_master' => $item->tarif_master,
                     'unit_cost' => $item->unit_cost,
-                    'kategori' => $item->kategori->nama_kategori ?? '-',
+                    'kategori_nama' => $item->kategori->nama_kategori ?? '-',
                     'kategori_id' => $item->kategori_id
                 ];
             })
@@ -286,6 +306,7 @@ class SimulationController extends Controller
      */
     public function categories(Request $request): JsonResponse
     {
+        $this->authorizeAnySimulationAccess();
         $q = Kategori::query();
         if ($request->filled('search')) {
             $term = $request->get('search');
@@ -363,7 +384,7 @@ class SimulationController extends Controller
             'notes' => 'nullable|string',
             'tier_preset_id' => 'nullable|exists:simulation_tier_presets,id',
             'default_margin_percent' => 'nullable|numeric|min:0|max:100',
-            'simulation_quantity' => 'required|integer|min:1',
+            'simulation_quantity' => 'required|integer|min:0',
             'simulation_margin_percent' => 'required|numeric|min:0|max:100',
             'items' => 'required|array|min:1',
             'items.*.layanan_id' => 'required|exists:layanan,id',
@@ -464,7 +485,7 @@ class SimulationController extends Controller
             'notes' => 'nullable|string',
             'tier_preset_id' => 'nullable|exists:simulation_tier_presets,id',
             'default_margin_percent' => 'nullable|numeric|min:0|max:100',
-            'simulation_quantity' => 'required|integer|min:1',
+            'simulation_quantity' => 'required|integer|min:0',
             'simulation_margin_percent' => 'required|numeric|min:0|max:100',
             'items' => 'required|array|min:1',
             'items.*.layanan_id' => 'required|exists:layanan,id',

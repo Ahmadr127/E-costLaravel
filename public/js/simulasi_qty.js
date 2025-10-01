@@ -1,9 +1,5 @@
 window.simulationQtyApp = function simulationQtyApp() {
-    let defaultTiers = [
-        { min: 1, max: 5, percent: 20 },
-        { min: 6, max: 10, percent: 15 },
-        { min: 11, max: null, percent: 10 },
-    ];
+    let defaultTiers = [];
 
     return {
         searchQuery: '',
@@ -15,6 +11,7 @@ window.simulationQtyApp = function simulationQtyApp() {
         totalUnitCost: 0,
         totalMarginValue: 0,
         grandTotal: 0,
+        perPatientPrice: 0,
         sumUnitCost: 0,
         sumTarifMaster: 0,
         // Preset-based qty simulation
@@ -22,6 +19,7 @@ window.simulationQtyApp = function simulationQtyApp() {
         searchTimeout: null,
         isSearching: false,
         showDropdown: false,
+        selectedSearchIndex: -1,
         // presets & tiers (qty only)
         tierPresets: [],
         activePresetId: '',
@@ -34,6 +32,7 @@ window.simulationQtyApp = function simulationQtyApp() {
         breakdownRows: [],
         defaultTierUsed: false,
         defaultTierPercent: 0,
+        effectiveMarginPercent: 0,
         // breakdown visibility toggle
         showBreakdown: false,
 
@@ -65,18 +64,40 @@ window.simulationQtyApp = function simulationQtyApp() {
             return Number(cleaned || '0');
         },
 
+        // Helper for displaying relative time in saved simulations list
+        formatDateAgo(input) {
+            try {
+                const date = new Date(input);
+                if (isNaN(date.getTime())) return '';
+                const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+                if (seconds < 60) return `${seconds}s lalu`;
+                const minutes = Math.floor(seconds / 60);
+                if (minutes < 60) return `${minutes}m lalu`;
+                const hours = Math.floor(minutes / 60);
+                if (hours < 24) return `${hours}j lalu`;
+                const days = Math.floor(hours / 24);
+                if (days < 30) return `${days}h lalu`;
+                const months = Math.floor(days / 30);
+                if (months < 12) return `${months}bln lalu`;
+                const years = Math.floor(months / 12);
+                return `${years}thn lalu`;
+            } catch { return ''; }
+        },
+
         searchLayanan(query) {
             this.searchQuery = query;
             if ((query || '').length < 2) {
                 this.searchResults = [];
                 this.isSearching = false;
                 this.showDropdown = false;
+                this.selectedSearchIndex = -1;
                 return;
             }
             clearTimeout(this.searchTimeout);
             this.searchTimeout = setTimeout(async () => {
                 this.isSearching = true;
                 this.showDropdown = true;
+                this.selectedSearchIndex = -1;
                 try {
                     const url = `${window.SIMULATION_SEARCH_URL}?search=${encodeURIComponent(query)}`;
                     const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
@@ -88,6 +109,45 @@ window.simulationQtyApp = function simulationQtyApp() {
                     this.isSearching = false;
                 }
             }, 300);
+        },
+
+        handleSearchKeydown(event) {
+            if (!this.showDropdown || this.searchResults.length === 0) {
+                return;
+            }
+
+            switch (event.key) {
+                case 'ArrowDown':
+                    event.preventDefault();
+                    this.selectedSearchIndex = Math.min(this.selectedSearchIndex + 1, this.searchResults.length - 1);
+                    break;
+                case 'ArrowUp':
+                    event.preventDefault();
+                    this.selectedSearchIndex = Math.max(this.selectedSearchIndex - 1, -1);
+                    break;
+                case 'Enter':
+                    event.preventDefault();
+                    if (this.selectedSearchIndex >= 0 && this.selectedSearchIndex < this.searchResults.length) {
+                        this.addLayananToSimulation(this.searchResults[this.selectedSearchIndex]);
+                    }
+                    break;
+                case 'Tab':
+                    // Navigate through search results with Tab
+                    event.preventDefault();
+                    if (event.shiftKey) {
+                        // Shift+Tab: go to previous item
+                        this.selectedSearchIndex = Math.max(this.selectedSearchIndex - 1, -1);
+                    } else {
+                        // Tab: go to next item
+                        this.selectedSearchIndex = Math.min(this.selectedSearchIndex + 1, this.searchResults.length - 1);
+                    }
+                    break;
+                case 'Escape':
+                    event.preventDefault();
+                    this.showDropdown = false;
+                    this.selectedSearchIndex = -1;
+                    break;
+            }
         },
 
         addLayananToSimulation(layanan) {
@@ -107,6 +167,7 @@ window.simulationQtyApp = function simulationQtyApp() {
                 this.searchResults = [];
                 this.searchQuery = '';
                 this.showDropdown = false;
+                this.selectedSearchIndex = -1;
                 return;
             }
 
@@ -124,11 +185,12 @@ window.simulationQtyApp = function simulationQtyApp() {
             this.searchResults = [];
             this.searchQuery = '';
             this.showDropdown = false;
+            this.selectedSearchIndex = -1;
             this.updateSimulationTotals();
         },
 
         getTierPercent(qty) {
-            const n = Math.max(1, Math.floor(Number(qty) || 1));
+            const n = Math.max(0, Math.floor(Number(qty) || 0));
             for (const t of (this.activeTiers || defaultTiers)) {
                 if (n >= t.min && n <= t.max) return t.percent;
             }
@@ -138,43 +200,45 @@ window.simulationQtyApp = function simulationQtyApp() {
 
         // NEW ARCHITECTURE: Simulation-level calculation functions
         updateSimulationTotals() {
-            // Calculate total unit cost from all services
+            // Calculate totals
             this.totalUnitCost = this.simulationResults.reduce((sum, item) => 
                 sum + Math.round(Number(item.unit_cost) || 0), 0);
-            
-            // Calculate sum of tarif master
             this.sumTarifMaster = this.simulationResults.reduce((sum, item) => 
                 sum + Math.round(Number(item.tarif_master) || 0), 0);
-            
-            // Calculate simulation margin based on tier preset
+
+            // Piecewise margin by tiers (as markup) based on total Unit Cost
+            const breakdown = this.buildSimulationBreakdown(this.totalUnitCost, this.simulationQuantity);
+            this.breakdownRows = breakdown.rows;
+            this.defaultTierUsed = breakdown.defaultUsed;
+            this.defaultTierPercent = breakdown.defaultPercent;
+            this.effectiveMarginPercent = breakdown.effectivePercent;
+            // simulation-level displayed margin percent (for info only): use tier percent at the final qty
             this.simulationMarginPercent = this.getTierPercent(this.simulationQuantity);
-            
-            // Calculate total margin value
-            this.totalMarginValue = Math.round(this.totalUnitCost * this.simulationMarginPercent / 100);
-            
-            // Calculate grand total: (total unit cost + margin) * simulation quantity
-            this.grandTotal = (this.totalUnitCost + this.totalMarginValue) * this.simulationQuantity;
-            
-            // Update breakdown for simulation-level calculation
-            this.updateSimulationBreakdown();
+            // totals from breakdown
+            this.grandTotal = breakdown.totalSubtotal;
+            this.totalMarginValue = breakdown.totalDiscount;
+            this.perPatientPrice = this.simulationQuantity > 0 ? Math.round(this.grandTotal / this.simulationQuantity) : 0;
+            // keep sums for save payloads
+            this.sumUnitCost = this.totalUnitCost;
         },
 
         // PRESET-BASED QTY SIMULATION: Apply preset qty when preset changes
         applyPresetQty() {
             const preset = this.tierPresets.find(p => String(p.id) === String(this.activePresetId));
-            if (preset && preset.simulation_qty) {
-                this.simulationQuantity = preset.simulation_qty;
-                this.selectedPresetQty = preset.simulation_qty;
+            if (preset && preset.simulation_qty != null) {
+                this.simulationQuantity = Math.max(0, Math.floor(Number(preset.simulation_qty) || 0));
+                this.selectedPresetQty = this.simulationQuantity;
                 this.updateSimulationTotals();
             }
         },
 
         onSimulationQtyChange(value) {
-            this.simulationQuantity = Math.max(1, Math.floor(Number(value) || 1));
+            this.simulationQuantity = Math.max(0, Math.floor(Number(value) || 0));
             this.updateSimulationTotals();
         },
 
         onSimulationMarginChange(value) {
+            // kept for backward compatibility; margin is driven by tiers as discount now
             this.simulationMarginPercent = Math.max(0, Math.min(100, Number(value) || 0));
             this.updateSimulationTotals();
         },
@@ -192,6 +256,19 @@ window.simulationQtyApp = function simulationQtyApp() {
             evt.target.value = this.formatNumber(item.unit_cost);
         },
 
+        // NEW: Allow editing Tarif Master, lock Unit Cost
+        onTarifMasterInput(item, evt) {
+            const raw = evt.target.value;
+            const val = this.unformatNumberString(raw);
+            item.tarif_master = Math.round(Math.max(0, val));
+            this.updateSimulationTotals();
+            evt.target.value = this.formatNumber(item.tarif_master);
+        },
+
+        onTarifMasterBlur(item, evt) {
+            evt.target.value = this.formatNumber(item.tarif_master);
+        },
+
         updateSimulationBreakdown() {
             if (this.simulationResults.length === 0) {
                 this.breakdownRows = [];
@@ -199,12 +276,12 @@ window.simulationQtyApp = function simulationQtyApp() {
                 this.defaultTierPercent = 0;
                 return;
             }
-            
-            // Build breakdown for simulation-level calculation
+            // Build breakdown for simulation-level calculation using total Unit Cost as base
             const breakdown = this.buildSimulationBreakdown(this.totalUnitCost, this.simulationQuantity);
-                this.breakdownRows = breakdown.rows;
-                this.defaultTierUsed = breakdown.defaultUsed;
-                this.defaultTierPercent = breakdown.defaultPercent;
+            this.breakdownRows = breakdown.rows;
+            this.defaultTierUsed = breakdown.defaultUsed;
+            this.defaultTierPercent = breakdown.defaultPercent;
+            this.effectiveMarginPercent = breakdown.effectivePercent;
         },
 
         toggleBreakdownVisibility() {
@@ -306,8 +383,8 @@ window.simulationQtyApp = function simulationQtyApp() {
                 }
                 
                 // NEW ARCHITECTURE: Load simulation-level data
-                this.simulationQuantity = sim.simulation_quantity || 1;
-                this.simulationMarginPercent = sim.simulation_margin_percent || 0;
+                this.simulationQuantity = (sim.simulation_quantity ?? 0);
+                this.simulationMarginPercent = (sim.simulation_margin_percent ?? 0);
                 this.totalUnitCost = sim.total_unit_cost || 0;
                 this.totalMarginValue = sim.total_margin_value || 0;
                 
@@ -318,6 +395,8 @@ window.simulationQtyApp = function simulationQtyApp() {
                     jenis_pemeriksaan: item.jenis_pemeriksaan,
                     tarif_master: item.tarif_master,
                     unit_cost: item.unit_cost,
+                    kategori_id: item.kategori_id || null,
+                    kategori_nama: item.kategori_nama || '',
                 }));
                 
                 this.updateSimulationTotals();
@@ -441,9 +520,14 @@ window.simulationQtyApp = function simulationQtyApp() {
             if (preset) {
                 this.activePresetId = preset.id;
                 this.activeTiers = (preset.tiers || []).map(normalizeTier);
-                
-                // Apply preset qty
+                // still use its qty if exists, otherwise leave as 1
                 this.applyPresetQty();
+            } else {
+                // no preset: ensure zero discount by default
+                this.activeTiers = [];
+                this.simulationQuantity = 1;
+                this.simulationMarginPercent = 0;
+                this.updateSimulationTotals();
             }
         },
 
@@ -451,8 +535,7 @@ window.simulationQtyApp = function simulationQtyApp() {
             const preset = this.tierPresets.find(p => String(p.id) === String(this.activePresetId));
             if (!preset) return;
             this.activeTiers = (preset.tiers || []).map(normalizeTier);
-            
-            // Apply preset qty
+            // Apply preset qty (allow 0)
             this.applyPresetQty();
         },
 
@@ -462,7 +545,7 @@ window.simulationQtyApp = function simulationQtyApp() {
             this.tierForm = { 
                 id: preset.id, 
                 name: preset.name, 
-                simulation_qty: preset.simulation_qty || 1,
+                simulation_qty: (preset.simulation_qty ?? 0),
                 is_default: !!preset.is_default, 
                 tiers: (preset.tiers || []).map(cloneTier) 
             };
@@ -473,27 +556,28 @@ window.simulationQtyApp = function simulationQtyApp() {
             this.tierForm = { 
                 id: null, 
                 name: '', 
-                simulation_qty: 1,
+                simulation_qty: 0,
                 is_default: false, 
-                tiers: defaultTiers.slice().map(cloneTier) 
+                tiers: [] 
             };
             this.showTierModal = true;
         },
 
         closeTierModal() { this.showTierModal = false; },
 
-        addTier() { this.tierForm.tiers.push({ min: 1, max: null, percent: 0 }); },
+        addTier() { this.tierForm.tiers.push({ min: null, max: null, percent: 0 }); },
         removeTier(idx) { this.tierForm.tiers.splice(idx, 1); },
 
         async savePreset() {
+            const cleanedTiers = (this.tierForm.tiers || []).filter(t => t.min != null && String(t.min).trim() !== '').map(normalizeTier);
             const payload = { 
                 name: (this.tierForm.name || '').trim(), 
-                simulation_qty: this.tierForm.simulation_qty || 1,
+                simulation_qty: (this.tierForm.simulation_qty ?? 0),
                 is_default: !!this.tierForm.is_default, 
-                tiers: (this.tierForm.tiers || []).map(normalizeTier) 
+                tiers: cleanedTiers 
             };
             if (!payload.name || payload.tiers.length === 0) { this.showNotification('Nama dan tier wajib diisi', 'warning'); return; }
-            if (!payload.simulation_qty || payload.simulation_qty < 1) { this.showNotification('Qty simulasi wajib diisi minimal 1', 'warning'); return; }
+            if (payload.simulation_qty < 0) { this.showNotification('Qty simulasi tidak boleh negatif', 'warning'); return; }
             const method = this.tierForm.id ? 'PUT' : 'POST';
             const url = this.tierForm.id ? `${(window.SIMULATION_QTY_PRESETS_URL || '/simulation-qty/presets')}/${this.tierForm.id}` : (window.SIMULATION_QTY_PRESETS_URL || '/simulation-qty/presets');
             const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': window.CSRF_TOKEN }, body: JSON.stringify(payload) });
@@ -522,100 +606,48 @@ window.simulationQtyApp = function simulationQtyApp() {
 
         // NEW ARCHITECTURE: computeSubtotal is no longer needed for individual services
 
-        // NEW ARCHITECTURE: Build breakdown for simulation-level calculation
-        buildSimulationBreakdown(totalUnitCost, simulationQty) {
+        // NEW ARCHITECTURE: Build breakdown for a single applicable tier at current qty
+        buildSimulationBreakdown(totalBaseUnitCost, simulationQty) {
             const rows = [];
-            const tiersRaw = (this.activeTiers || defaultTiers).map(normalizeTier).filter(t => t.min >= 1 && (t.max == null || t.max >= t.min));
-            // sort by min asc
-            const tiers = tiersRaw.sort((a, b) => a.min - b.min);
+            const tiersRaw = (this.activeTiers || defaultTiers)
+                .map(normalizeTier)
+                .filter(t => t.min != null && t.min >= 1 && (t.max == null || t.max >= t.min))
+                .sort((a, b) => a.min - b.min);
 
-            // default percent editable by user; fallback ke persen tier terakhir jika 0
-            const lastTier = tiers[tiers.length - 1];
+            // Determine effective percent based on current qty
+            let matchedTier = null;
+            for (const t of tiersRaw) {
+                const max = t.max == null ? Infinity : t.max;
+                if (simulationQty >= t.min && simulationQty <= max) { matchedTier = t; break; }
+            }
+
+            const lastTier = tiersRaw[tiersRaw.length - 1];
             const fallbackDefault = Number(lastTier ? lastTier.percent : 0) || 0;
             const defaultPercent = Number(this.defaultMarginPercent || fallbackDefault);
+            const effectivePercent = matchedTier ? (Number(matchedTier.percent) || 0) : defaultPercent;
 
-            let cursor = 1;
-            let totalQty = 0; let totalSubtotal = 0; let defaultUsed = false;
+            const marginValuePerUnit = Math.round(totalBaseUnitCost * effectivePercent / 100);
+            const unitPrice = Math.max(0, totalBaseUnitCost + marginValuePerUnit);
+            const subtotal = unitPrice * simulationQty;
 
-            for (const t of tiers) {
-                const max = t.max == null ? Infinity : t.max;
-                // gap before this tier
-                if (cursor < t.min) {
-                    const gapTo = Math.min(t.min - 1, simulationQty);
-                    if (gapTo >= cursor) {
-                        const count = gapTo - cursor + 1;
-                        const marginValue = Math.round(totalUnitCost * defaultPercent / 100);
-                        const subtotal = (totalUnitCost + marginValue) * count;
-                        rows.push({ 
-                            range: `${cursor}-${gapTo}`, 
-                            qty: count, 
-                            marginPct: defaultPercent, 
-                            unitCost: totalUnitCost, 
-                            unitPrice: totalUnitCost + marginValue, 
-                            subtotal, 
-                            isDefault: true 
-                        });
-                        defaultUsed = true; totalQty += count; totalSubtotal += subtotal; cursor = gapTo + 1;
-                    }
-                }
-                if (cursor > simulationQty) break;
-                // coverage of this tier
-                const from = Math.max(cursor, t.min);
-                const to = Math.min(max, simulationQty);
-                if (to >= from) {
-                    const count = to - from + 1;
-                    const marginPct = Number(t.percent) || 0;
-                    const marginValue = Math.round(totalUnitCost * marginPct / 100);
-                    const subtotal = (totalUnitCost + marginValue) * count;
-                    rows.push({ 
-                        range: t.max == null ? `${from}+` : `${from}-${to}`, 
-                        qty: count, 
-                        marginPct, 
-                        unitCost: totalUnitCost, 
-                        unitPrice: totalUnitCost + marginValue, 
-                        subtotal, 
-                        isDefault: false 
-                    });
-                    totalQty += count; totalSubtotal += subtotal; cursor = to + 1;
-                }
-                if (cursor > simulationQty) break;
-            }
+            const rangeLabel = matchedTier
+                ? (matchedTier.max == null ? `${matchedTier.min}+` : `${matchedTier.min}-${matchedTier.max}`)
+                : `default`;
 
-            // tail after last tier
-            if (cursor <= simulationQty) {
-                const count = simulationQty - cursor + 1;
-                const marginValue = Math.round(totalUnitCost * defaultPercent / 100);
-                const subtotal = (totalUnitCost + marginValue) * count;
-                rows.push({ 
-                    range: `${cursor}-${simulationQty}`, 
-                    qty: count, 
-                    marginPct: defaultPercent, 
-                    unitCost: totalUnitCost, 
-                    unitPrice: totalUnitCost + marginValue, 
-                    subtotal, 
-                    isDefault: true 
-                });
-                defaultUsed = true; totalQty += count; totalSubtotal += subtotal;
-            }
+            rows.push({
+                range: rangeLabel,
+                qty: simulationQty,
+                marginPct: effectivePercent,
+                unitCost: totalBaseUnitCost,
+                unitPrice: unitPrice,
+                subtotal,
+                isDefault: !matchedTier
+            });
 
-            // if no tiers defined, cover full range with defaultPercent (0 or set by policy)
-            if (rows.length === 0) {
-                const marginValue = Math.round(totalUnitCost * defaultPercent / 100);
-                const subtotal = (totalUnitCost + marginValue) * simulationQty;
-                rows.push({ 
-                    range: `1-${simulationQty}`, 
-                    qty: simulationQty, 
-                    marginPct: defaultPercent, 
-                    unitCost: totalUnitCost, 
-                    unitPrice: totalUnitCost + marginValue, 
-                    subtotal, 
-                    isDefault: true 
-                });
-                defaultUsed = true; totalQty = simulationQty; totalSubtotal = subtotal;
-            }
-
-            rows.totalQty = totalQty; rows.totalSubtotal = totalSubtotal;
-            return { rows, defaultUsed, defaultPercent };
+            rows.totalQty = simulationQty;
+            rows.totalSubtotal = subtotal;
+            rows.totalDiscount = (unitPrice - totalBaseUnitCost) * simulationQty;
+            return { rows, defaultUsed: !matchedTier, defaultPercent, effectivePercent, unitPrice, totalSubtotal: subtotal, totalDiscount: rows.totalDiscount };
         },
     };
 };

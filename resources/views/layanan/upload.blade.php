@@ -66,7 +66,7 @@
                     </h3>
                 </div>
                 <div class="p-6">
-                    <form action="{{ route('layanan.upload') }}" method="POST" enctype="multipart/form-data" class="space-y-6">
+                    <form id="layanan-upload-form" action="{{ route('layanan.upload') }}" method="POST" enctype="multipart/form-data" class="space-y-6" data-index-url="{{ route('layanan.index') }}">
                         @csrf
                         <div>
                             <label for="excel_file" class="block text-sm font-medium text-gray-700 mb-2">
@@ -130,7 +130,7 @@
 
                     <div class="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-md p-3 space-y-1">
                         <div><span class="font-semibold">Kode</span> (opsional, unik jika diisi)</div>
-                        <div><span class="font-semibold">Jenis Pemeriksaan</span> (opsional)</div>
+                        <div><span class="font-semibold">Jenis Pemeriksaan</span> (wajib jika tanpa Kode)</div>
                         <div><span class="font-semibold">Kategori</span> (opsional, dapat nama baru)</div>
                         <div><span class="font-semibold">Tarif Master</span> (opsional: II / IGD / POLI)</div>
                         <div><span class="font-semibold">Unit Cost</span> (wajib, angka; titik/koma ribuan otomatis didukung)</div>
@@ -141,6 +141,7 @@
                         <ol class="list-decimal list-inside space-y-1 text-sm text-gray-600">
                             <li>Pastikan baris judul/header berada di atas data. Import otomatis mendeteksi header hingga 10 baris pertama.</li>
                             <li>Isi <strong>Unit Cost</strong> dengan angka. Format 10000, 10.000 atau 10,000 sama-sama diterima.</li>
+                            <li>Minimal kolom wajib: <strong>Jenis Pemeriksaan</strong> + <strong>Unit Cost</strong> (jika tidak mengisi <strong>Kode</strong>).</li>
                             <li>Isi <strong>Kategori</strong> bila ingin mengelompokkan layanan. Nama baru akan dibuat otomatis; jika kosong akan dimasukkan ke <strong>Default</strong>.</li>
                             <li>Jika mengisi <strong>Kode</strong>, data dengan kode yang sudah ada akan diperbarui dengan data baru.</li>
                         </ol>
@@ -148,11 +149,23 @@
 
                     <div>
                         <h4 class="text-sm font-medium text-gray-900 mb-2">Ketentuan & Catatan</h4>
-                        <ul class="space-y-1 text-sm text-gray-600">
-                            <li class="flex items-start"><i class="fas fa-exclamation-triangle text-yellow-500 mr-2 mt-0.5"></i>Baris judul/seksi (mis. "HEMATOLOGI") akan di-skip otomatis.</li>
-                            <li class="flex items-start"><i class="fas fa-exclamation-triangle text-yellow-500 mr-2 mt-0.5"></i>Baris tanpa angka <strong>Unit Cost</strong> akan di-skip.</li>
-                            <li class="flex items-start"><i class="fas fa-info text-blue-500 mr-2 mt-0.5"></i>Kode yang sudah ada akan <strong>diperbarui</strong> dengan data baru.</li>
-                            <li class="flex items-start"><i class="fas fa-info text-blue-500 mr-2 mt-0.5"></i>Data yang berhasil diimport otomatis <strong>aktif</strong>.</li>
+                        <ul class="space-y-2 text-sm text-gray-700">
+                            <li class="flex items-start">
+                                <i class="fas fa-exclamation-triangle text-yellow-500 mr-2 mt-0.5"></i>
+                                <span>Baris judul/seksi (mis. "HEMATOLOGI") akan di-skip otomatis.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fas fa-exclamation-triangle text-yellow-500 mr-2 mt-0.5"></i>
+                                <span>Baris tanpa angka <span class="font-semibold">Unit Cost</span> akan di-skip.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fas fa-info text-blue-500 mr-2 mt-0.5"></i>
+                                <span>Kode yang sudah ada akan <span class="font-semibold">diperbarui</span> dengan data baru.</span>
+                            </li>
+                            <li class="flex items-start">
+                                <i class="fas fa-info text-blue-500 mr-2 mt-0.5"></i>
+                                <span>Data yang berhasil diimpor akan otomatis <span class="font-semibold">aktif</span>.</span>
+                            </li>
                         </ul>
                     </div>
                 </div>
@@ -220,26 +233,15 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function() {
-    // File input validation
+    // File input validation (hanya cek tipe, tanpa batasan ukuran)
     const fileInput = document.getElementById('excel_file');
     if (fileInput) {
         fileInput.addEventListener('change', function() {
             const file = this.files[0];
-            const maxSize = 10 * 1024 * 1024; // 10MB
             const allowedTypes = ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'];
-            
-            if (file) {
-                if (file.size > maxSize) {
-                    alert('Ukuran file terlalu besar. Maksimal 10MB.');
-                    this.value = '';
-                    return;
-                }
-                
-                if (!allowedTypes.includes(file.type)) {
-                    alert('Format file tidak didukung. Gunakan file Excel (.xlsx atau .xls).');
-                    this.value = '';
-                    return;
-                }
+            if (file && file.type && !allowedTypes.includes(file.type)) {
+                alert('Format file tidak didukung. Gunakan file Excel (.xlsx atau .xls).');
+                this.value = '';
             }
         });
     }
@@ -257,4 +259,5 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 5000);
 });
 </script>
+<script src="{{ asset('js/import_loading.js') }}"></script>
 @endpush

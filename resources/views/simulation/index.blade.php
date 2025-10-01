@@ -62,7 +62,8 @@
                    x-model="searchQuery"
                    @input="searchLayanan($event.target.value)"
                    @focus="if(searchResults.length > 0) showDropdown = true"
-                   @blur="setTimeout(() => showDropdown = false, 200)"
+                   @blur="setTimeout(() => { if (!document.activeElement || !document.activeElement.closest('[x-show*=\"showDropdown\"]')) showDropdown = false; }, 200)"
+                   @keydown="handleSearchKeydown($event)"
                    placeholder="Masukkan kode atau jenis pemeriksaan..."
                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
             
@@ -76,17 +77,25 @@
                  x-transition:leave-end="transform opacity-0 scale-95"
                  class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-y-auto">
                 <div class="divide-y divide-gray-100">
-                    <template x-for="result in searchResults" :key="result.id">
-                        <div class="px-2 py-1.5 hover:bg-gray-50 cursor-pointer border-b border-gray-50 last:border-b-0" 
-                             @click="addLayananToSimulation(result)">
+                    <template x-for="(result, index) in searchResults" :key="result.id">
+                        <div class="px-2 py-1.5 hover:bg-gray-50 border-b border-gray-50 last:border-b-0" 
+                             :class="selectedSearchIndex === index ? 'bg-blue-50 border-blue-200' : ''"
+                             @mouseenter="selectedSearchIndex = index">
                             <div class="flex justify-between items-center">
                                 <div class="flex-1 min-w-0">
                                     <p class="text-xs font-medium text-gray-900 truncate" x-text="result.kode + ' - ' + result.jenis_pemeriksaan"></p>
                                     <p class="text-[10px] text-gray-500" x-text="result.tarif_master ? ('Tarif: ' + result.tarif_master) : ''"></p>
                                 </div>
-                                <div class="text-right ml-2 flex-shrink-0">
-                                    <p class="text-xs font-semibold text-green-600" x-text="'Rp ' + formatNumber(result.unit_cost)"></p>
-                                    <p class="text-xs text-gray-400">+</p>
+                                <div class="flex items-center gap-2 ml-2 flex-shrink-0">
+                                    <div class="text-right">
+                                        <p class="text-xs font-semibold text-green-600" x-text="'Rp ' + formatNumber(result.unit_cost)"></p>
+                                    </div>
+                                    <button type="button" 
+                                            class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 border border-transparent rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
+                                            @click="addLayananToSimulation(result)"
+                                            :tabindex="selectedSearchIndex === index ? 0 : -1">
+                                        Pilih
+                                    </button>
                                 </div>
                             </div>
                         </div>
@@ -120,7 +129,7 @@
                 <div>
                     <label class="block text-xs text-gray-600 mb-1">Margin Global (%)</label>
                     <div class="flex items-center">
-                        <input type="number" min="0" max="100" step="0.01" x-model.number="globalMarginPercent" class="w-28 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
+                        <input type="number" min="0" max="100" step="1" x-model.number="globalMarginPercent" class="w-28 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" />
                     </div>
                 </div>
                 <button type="button" class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-2.5 py-1.5 text-xs bg-green-600 text-white hover:bg-green-700 focus:ring-green-500" @click="applyGlobalMarginToAll()">
@@ -143,6 +152,7 @@
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">No</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kode</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jenis Pemeriksaan</th>
+                        <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Kategori</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tarif Master</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
                         <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Margin (%)</th>
@@ -164,13 +174,14 @@
                                     <span x-text="result.jenis_pemeriksaan"></span>
                                 </div>
                             </td>
+                            <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="result.kategori_nama || '-'"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900" x-text="'Rp ' + formatNumber(result.tarif_master || 0)"></td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900">
                                 <input type="text" inputmode="numeric" class="w-28 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" :value="formatNumber(result.unit_cost)" @input="onUnitCostInput(result, $event)" @focus="$event.target.select()" @blur="onUnitCostBlur(result, $event)">
                             </td>
                             <td class="px-3 py-2 whitespace-nowrap text-xs text-gray-900">
                                 <div class="flex items-center gap-1">
-                                    <input type="number" min="0" max="100" step="0.01" class="w-20 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" :value="(result.marginPercentage * 100).toFixed(2)" @input="onRowMarginChange(result, $event.target.value)">
+                                    <input type="number" min="0" max="100" step="1" class="w-20 px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent" :value="Math.round(result.marginPercentage * 100)" @input="onRowMarginChange(result, $event.target.value)">
                                     <span class="text-gray-400">%</span>
                                 </div>
                             </td>
@@ -189,6 +200,7 @@
                 </tbody>
                 <tfoot class="bg-gray-50">
                     <tr>
+                        <td class="px-3 py-2 text-xs text-gray-500"></td>
                         <td class="px-3 py-2 text-xs text-gray-500"></td>
                         <td class="px-3 py-2 text-xs text-gray-500"></td>
                         <td class="px-3 py-2 text-xs text-gray-500"></td>

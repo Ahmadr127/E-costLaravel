@@ -34,12 +34,14 @@
                 </div>
                 
                 <ul class="space-y-2">
+                    @if(auth()->user()->hasPermission('view_dashboard'))
                     <li>
                         <a href="{{ route('dashboard') }}" title="Dashboard" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('dashboard') ? 'bg-green-800' : '' }}">
                             <i class="fas fa-tachometer-alt w-5 text-center" :class="sidebarCollapsed ? 'mr-0' : 'mr-3'"></i>
                             <span x-show="!sidebarCollapsed" x-transition.opacity.duration.150>Dashboard</span>
                         </a>
                     </li>
+                    @endif
                     
 
                     @if(auth()->user()->hasPermission('manage_users'))
@@ -89,7 +91,7 @@
 
                     @if(auth()->user()->hasPermission('access_simulation'))
                     <li>
-                        <a href="{{ route('simulation.index') }}" title="Simulasi" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('simulation.*') ? 'bg-green-800' : '' }}">
+                        <a href="{{ route('simulation.index') }}" title="Simulasi" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('simulation.index') ? 'bg-green-800' : '' }}">
                             <i class="fas fa-calculator w-5 text-center" :class="sidebarCollapsed ? 'mr-0' : 'mr-3'"></i>
                             <span x-show="!sidebarCollapsed" x-transition.opacity.duration.150>Simulasi</span>
                         </a>
@@ -105,21 +107,18 @@
                     </li>
                     @endif
 
+                    @if(auth()->user()->hasPermission('manage_simulation_qty_presets'))
+                    <li>
+                        <a href="{{ route('simulation.qty.presets.page') }}" title="Master Preset Qty" class="flex items-center px-4 py-3 text-white rounded-lg hover:bg-green-800 transition-colors {{ request()->routeIs('simulation.qty.presets.page') ? 'bg-green-800' : '' }}">
+                            <i class="fas fa-sliders-h w-5 text-center" :class="sidebarCollapsed ? 'mr-0' : 'mr-3'"></i>
+                            <span x-show="!sidebarCollapsed" x-transition.opacity.duration.150>Master Preset Qty</span>
+                        </a>
+                    </li>
+                    @endif
+
                 </ul>
 
-                <!-- User Profile Section -->
-                <div class="mt-8 pt-6 border-t border-green-600">
-                    <div class="flex items-center px-4 py-3 text-white">
-                        <div class="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center mr-3">
-                            <i class="fas fa-user text-sm"></i>
-                        </div>
-                        <div class="flex-1" x-show="!sidebarCollapsed" x-transition.opacity.duration.150>
-                            <div class="text-sm font-medium">{{ auth()->user()->name }}</div>
-                            <div class="text-xs text-green-200">{{ auth()->user()->role->display_name ?? 'User' }}</div>
-                        </div>
-                        <i class="fas fa-chevron-down text-xs text-green-200" x-show="!sidebarCollapsed" x-transition.opacity.duration.150></i>
-                    </div>
-                </div>
+                
             </nav>
         </div>
 
@@ -143,15 +142,37 @@
                     </div>
                     
                     <div class="flex items-center space-x-4">
-                        <div class="text-sm text-gray-600">
+                        <div class="text-sm text-gray-600 hidden sm:block">
                             {{ now()->format('d M Y, H:i') }}
                         </div>
-                        <form method="POST" action="{{ route('logout') }}" class="inline">
-                            @csrf
-                            <button type="submit" class="p-2 text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded-md transition-colors" onclick="return confirm('Apakah Anda yakin ingin keluar?')">
-                                <i class="fas fa-sign-out-alt"></i>
+
+                        <div x-data="{ open: false }" class="relative">
+                            <button @click="open = !open" class="flex items-center gap-2 px-3 py-2 rounded-md border border-gray-200 hover:bg-gray-50 text-gray-700">
+                                <div class="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center">
+                                    <i class="fas fa-user text-sm"></i>
+                                </div>
+                                <div class="hidden md:flex flex-col items-start leading-tight">
+                                    <span class="text-sm font-medium">{{ auth()->user()->name }}</span>
+                                    <span class="text-xs text-gray-500">{{ auth()->user()->role->display_name ?? 'User' }}</span>
+                                </div>
+                                <i class="fas fa-chevron-down text-xs text-gray-500"></i>
                             </button>
-                        </form>
+
+                            <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-md shadow-lg overflow-hidden z-50">
+                                <div class="px-4 py-3 border-b border-gray-100">
+                                    <div class="text-sm font-medium text-gray-900">{{ auth()->user()->name }}</div>
+                                    <div class="text-xs text-gray-500">{{ auth()->user()->role->display_name ?? 'User' }}</div>
+                                </div>
+                                <div class="py-1">
+                                    <form method="POST" action="{{ route('logout') }}" class="w-full">
+                                        @csrf
+                                        <button type="submit" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50" onclick="return confirm('Apakah Anda yakin ingin keluar?')">
+                                            <i class="fas fa-sign-out-alt mr-2"></i> Keluar
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </header>

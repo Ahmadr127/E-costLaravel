@@ -433,7 +433,8 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
     {
         $headerPatterns = [
             'kode' => ['kode', 'code', 'id', 'no'],
-            'jenis_pemeriksaan' => ['jenis', 'pemeriksaan', 'nama', 'tindakan', 'layanan'],
+            // Tambahkan variasi umum: "item wise", "item", "deskripsi"
+            'jenis_pemeriksaan' => ['jenis', 'pemeriksaan', 'nama', 'tindakan', 'layanan', 'item wise', 'item', 'deskripsi', 'description'],
             'unit_cost' => ['unit cost', 'unitcost', 'cost', 'biaya', 'harga'],
             'tarif_master' => ['tarif master', 'ii', 'igd', 'poli'] ,
             // Perluas sinonim kategori
@@ -518,24 +519,27 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
         
         // Gunakan mapping yang terdeteksi otomatis
         $kode = isset($row[$this->columnMapping['kode']]) ? trim($row[$this->columnMapping['kode']]) : '';
+        // Normalize empty string to null so it doesn't conflict with unique indexes or equality checks
+        if ($kode === '') { $kode = null; }
         $jenisPemeriksaan = isset($row[$this->columnMapping['jenis_pemeriksaan']]) ? trim($row[$this->columnMapping['jenis_pemeriksaan']]) : '';
         $unitCost = isset($row[$this->columnMapping['unit_cost']]) ? $this->parseUnitCost($row[$this->columnMapping['unit_cost']]) : null;
         $tarifMaster = isset($this->columnMapping['tarif_master']) && isset($row[$this->columnMapping['tarif_master']]) ? $this->normalizeTarifMaster(trim((string)$row[$this->columnMapping['tarif_master']])) : null;
         $kategoriName = isset($this->columnMapping['kategori']) && isset($row[$this->columnMapping['kategori']]) ? trim((string)$row[$this->columnMapping['kategori']]) : '';
 
         // Heuristik: deteksi dan lewati baris header atau baris judul seksi (mis. "Tindakan Operasi")
-        $lowerKode = strtolower($kode);
+        $lowerKode = strtolower((string)$kode);
         $lowerJenis = strtolower($jenisPemeriksaan);
         $isHeaderLike = in_array($lowerKode, ['no', 'kode', '#'])
             || strpos($lowerJenis, 'jenis') !== false
             || strpos($lowerJenis, 'pemeriksaan') !== false
             || in_array($lowerJenis, ['tindakan operasi', 'pemeriksaan laboratorium', 'radiologi', 'farmasi', 'igd', 'ii', 'poli']);
 
-        // Data dianggap valid jika memiliki salah satu angka (unit_cost atau tarif_master) atau memiliki kode yang bukan header
-        $hasNumeric = is_numeric($unitCost) || !empty($tarifMaster);
-        $hasValidKode = !empty($kode) && !in_array($lowerKode, ['no', 'kode', '#']);
-        if ($isHeaderLike || (!$hasNumeric && !$hasValidKode)) {
-            \Log::info("Skipping row {$this->currentRow} - detected as header/section or lacks numeric fields:", [
+        // Minimal requirement: harus ada 'jenis_pemeriksaan' (layanan) DAN angka 'unit_cost'.
+        // Tetap skip baris header/section.
+        $hasRequiredLayanan = !empty(trim((string)$jenisPemeriksaan));
+        $hasRequiredUnitCost = is_numeric($unitCost);
+        if ($isHeaderLike || !$hasRequiredLayanan || !$hasRequiredUnitCost) {
+            \Log::info("Skipping row {$this->currentRow} - not meeting minimal fields (layanan + unit_cost) or header:", [
                 'kode' => $kode,
                 'jenis_pemeriksaan' => $jenisPemeriksaan,
                 'unit_cost' => $unitCost,

@@ -35,7 +35,9 @@ Route::middleware('guest')->group(function () {
 
 // Protected routes
 Route::middleware('auth')->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    Route::middleware('permission:view_dashboard')->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+    });
     Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
     
 
@@ -75,29 +77,37 @@ Route::middleware('auth')->group(function () {
     // Simulation routes
     Route::middleware('permission:access_simulation')->group(function () {
         Route::get('simulation', [SimulationController::class, 'index'])->name('simulation.index');
-        Route::get('simulation-qty', [SimulationController::class, 'indexQty'])->name('simulation.qty');
-        Route::get('simulation/search', [SimulationController::class, 'search'])->name('simulation.search');
         Route::get('simulation/layanan', [SimulationController::class, 'getLayanan'])->name('simulation.layanan');
         Route::get('simulation/list', [SimulationController::class, 'list'])->name('simulation.list');
-        Route::get('simulation/categories', [SimulationController::class, 'categories'])->name('simulation.categories');
         Route::post('simulation', [SimulationController::class, 'store'])->name('simulation.store');
-        Route::get('simulation/{simulation}', [SimulationController::class, 'show'])->name('simulation.show');
-        Route::put('simulation/{simulation}', [SimulationController::class, 'update'])->name('simulation.update');
-        Route::delete('simulation/{simulation}', [SimulationController::class, 'destroy'])->name('simulation.destroy');
+        Route::get('simulation/{simulation}', [SimulationController::class, 'show'])->whereNumber('simulation')->name('simulation.show');
+        Route::put('simulation/{simulation}', [SimulationController::class, 'update'])->whereNumber('simulation')->name('simulation.update');
+        Route::delete('simulation/{simulation}', [SimulationController::class, 'destroy'])->whereNumber('simulation')->name('simulation.destroy');
     });
 
-    // Qty simulation tier preset routes (guarded by qty permission)
+    // Qty simulation tier preset routes
+    // Public (for qty users) - read presets
     Route::middleware('permission:access_simulation_qty')->group(function () {
+        Route::get('simulation-qty', [SimulationController::class, 'indexQty'])->name('simulation.qty');
         Route::get('simulation-qty/presets', [SimulationController::class, 'tierPresets'])->name('simulation.qty.presets');
-        Route::post('simulation-qty/presets', [SimulationController::class, 'storeTierPreset'])->name('simulation.qty.presets.store');
-        Route::put('simulation-qty/presets/{id}', [SimulationController::class, 'updateTierPreset'])->name('simulation.qty.presets.update');
-        Route::delete('simulation-qty/presets/{id}', [SimulationController::class, 'destroyTierPreset'])->name('simulation.qty.presets.destroy');
         // qty simulation CRUD
         Route::get('simulation-qty/list', [SimulationController::class, 'listQty'])->name('simulation.qty.list');
         Route::post('simulation-qty', [SimulationController::class, 'storeQty'])->name('simulation.qty.store');
-        Route::get('simulation-qty/{simulation}', [SimulationController::class, 'showQty'])->name('simulation.qty.show');
-        Route::put('simulation-qty/{simulation}', [SimulationController::class, 'updateQty'])->name('simulation.qty.update');
-        Route::delete('simulation-qty/{simulation}', [SimulationController::class, 'destroyQty'])->name('simulation.qty.destroy');
+        Route::get('simulation-qty/{simulation}', [SimulationController::class, 'showQty'])->whereNumber('simulation')->name('simulation.qty.show');
+        Route::put('simulation-qty/{simulation}', [SimulationController::class, 'updateQty'])->whereNumber('simulation')->name('simulation.qty.update');
+        Route::delete('simulation-qty/{simulation}', [SimulationController::class, 'destroyQty'])->whereNumber('simulation')->name('simulation.qty.destroy');
     });
+
+    // Management (separate permission) - manage single global preset
+    Route::middleware('permission:manage_simulation_qty_presets')->group(function () {
+        Route::get('simulation-qty/presets-page', [SimulationController::class, 'presetsPage'])->name('simulation.qty.presets.page');
+        Route::post('simulation-qty/presets', [SimulationController::class, 'storeTierPreset'])->name('simulation.qty.presets.store');
+        Route::put('simulation-qty/presets/{id}', [SimulationController::class, 'updateTierPreset'])->name('simulation.qty.presets.update');
+        Route::delete('simulation-qty/presets/{id}', [SimulationController::class, 'destroyTierPreset'])->name('simulation.qty.presets.destroy');
+    });
+
+    // Shared read-only endpoints for both simulation modes (auth + controller-level permission check)
+    Route::get('simulation/search', [SimulationController::class, 'search'])->name('simulation.search');
+    Route::get('simulation/categories', [SimulationController::class, 'categories'])->name('simulation.categories');
 
 });

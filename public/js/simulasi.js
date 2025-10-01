@@ -10,8 +10,9 @@ window.simulationApp = function simulationApp() {
         searchTimeout: null,
         isSearching: false,
         showDropdown: false,
-        marginPercentage: 0.10, // Default 10% margin
-        globalMarginPercent: 10,
+        selectedSearchIndex: -1,
+        marginPercentage: 0.00, // Default 0% margin
+        globalMarginPercent: 0,
         selectAll: false,
         selectedCount: 0,
         savedSimulations: [],
@@ -48,6 +49,7 @@ window.simulationApp = function simulationApp() {
                 this.searchResults = [];
                 this.isSearching = false;
                 this.showDropdown = false;
+                this.selectedSearchIndex = -1;
                 return;
             }
 
@@ -55,6 +57,7 @@ window.simulationApp = function simulationApp() {
             this.searchTimeout = setTimeout(async () => {
                 this.isSearching = true;
                 this.showDropdown = true;
+                this.selectedSearchIndex = -1;
                 try {
                     const url = `${window.SIMULATION_SEARCH_URL}?search=${encodeURIComponent(query)}`;
                     console.log('Making request to:', url);
@@ -91,6 +94,45 @@ window.simulationApp = function simulationApp() {
             }, 300);
         },
 
+        handleSearchKeydown(event) {
+            if (!this.showDropdown || this.searchResults.length === 0) {
+                return;
+            }
+
+            switch (event.key) {
+                case 'ArrowDown':
+                    event.preventDefault();
+                    this.selectedSearchIndex = Math.min(this.selectedSearchIndex + 1, this.searchResults.length - 1);
+                    break;
+                case 'ArrowUp':
+                    event.preventDefault();
+                    this.selectedSearchIndex = Math.max(this.selectedSearchIndex - 1, -1);
+                    break;
+                case 'Enter':
+                    event.preventDefault();
+                    if (this.selectedSearchIndex >= 0 && this.selectedSearchIndex < this.searchResults.length) {
+                        this.addLayananToSimulation(this.searchResults[this.selectedSearchIndex]);
+                    }
+                    break;
+                case 'Tab':
+                    // Navigate through search results with Tab
+                    event.preventDefault();
+                    if (event.shiftKey) {
+                        // Shift+Tab: go to previous item
+                        this.selectedSearchIndex = Math.max(this.selectedSearchIndex - 1, -1);
+                    } else {
+                        // Tab: go to next item
+                        this.selectedSearchIndex = Math.min(this.selectedSearchIndex + 1, this.searchResults.length - 1);
+                    }
+                    break;
+                case 'Escape':
+                    event.preventDefault();
+                    this.showDropdown = false;
+                    this.selectedSearchIndex = -1;
+                    break;
+            }
+        },
+
         addLayananToSimulation(layanan) {
             const existingIndex = this.simulationResults.findIndex(item => item.id === layanan.id);
             
@@ -116,13 +158,14 @@ window.simulationApp = function simulationApp() {
                     selected: false,
                     layanan_id: layanan.id,
                     kategori_id: layanan.kategori_id || null,
-                    kategori_nama: layanan.kategori || ''
+                    kategori_nama: layanan.kategori_nama || ''
                 });
                 
                 // Clear search results and close dropdown after adding
                 this.searchResults = [];
                 this.searchQuery = '';
-                this.showDropdown = false;  
+                this.showDropdown = false;
+                this.selectedSearchIndex = -1;
                 
                 // Show success notification
                 this.showNotification('Layanan berhasil ditambahkan ke simulasi', 'success');
@@ -132,8 +175,8 @@ window.simulationApp = function simulationApp() {
         },
 
         onRowMarginChange(item, value) {
-            const percent = isNaN(parseFloat(value)) ? 0 : Math.max(0, Math.min(100, parseFloat(value)));
-            item.marginPercentage = percent / 100;
+            const parsed = isNaN(parseInt(value, 10)) ? 0 : Math.max(0, Math.min(100, parseInt(value, 10)));
+            item.marginPercentage = parsed / 100;
             this.recalcItem(item);
             this.updateGrandTotal();
         },
@@ -179,14 +222,18 @@ window.simulationApp = function simulationApp() {
         },
 
         applyGlobalMarginToAll() {
-            const fraction = Math.max(0, Math.min(100, Number(this.globalMarginPercent))) / 100;
+            // enforce integer percent
+            this.globalMarginPercent = parseInt(this.globalMarginPercent, 10) || 0;
+            const fraction = Math.max(0, Math.min(100, this.globalMarginPercent)) / 100;
             this.simulationResults.forEach(item => { item.marginPercentage = fraction; this.recalcItem(item); });
             this.updateGrandTotal();
             this.showNotification('Margin diterapkan ke semua layanan', 'success');
         },
 
         applyGlobalMarginToSelected() {
-            const fraction = Math.max(0, Math.min(100, Number(this.globalMarginPercent))) / 100;
+            // enforce integer percent
+            this.globalMarginPercent = parseInt(this.globalMarginPercent, 10) || 0;
+            const fraction = Math.max(0, Math.min(100, this.globalMarginPercent)) / 100;
             let changed = 0;
             this.simulationResults.forEach(item => {
                 if (item.selected) {

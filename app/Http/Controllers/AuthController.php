@@ -11,6 +11,43 @@ use Illuminate\Support\Facades\Validator;
 
 class AuthController extends Controller
 {
+    private function getDefaultRedirectPath(User $user): string
+    {
+        if ($user->hasPermission('view_dashboard')) {
+            return '/dashboard';
+        }
+
+        if ($user->hasPermission('access_simulation_qty')) {
+            return route('simulation.qty');
+        }
+
+        if ($user->hasPermission('access_simulation')) {
+            return route('simulation.index');
+        }
+
+        if ($user->hasPermission('manage_users')) {
+            return route('users.index');
+        }
+
+        if ($user->hasPermission('manage_roles')) {
+            return route('roles.index');
+        }
+
+        if ($user->hasPermission('manage_permissions')) {
+            return route('permissions.index');
+        }
+
+        if ($user->hasPermission('manage_kategori')) {
+            return route('kategori.index');
+        }
+
+        if ($user->hasPermission('manage_layanan')) {
+            return route('layanan.index');
+        }
+
+        return '/login';
+    }
+
     public function showLogin()
     {
         return view('auth.login');
@@ -45,8 +82,9 @@ class AuthController extends Controller
         // Manual login
         Auth::login($user);
         $request->session()->regenerate();
-        
-        return redirect()->intended('/dashboard');
+
+        $fallback = $this->getDefaultRedirectPath($user);
+        return redirect()->intended($fallback);
     }
 
     public function register(Request $request)
@@ -73,7 +111,7 @@ class AuthController extends Controller
 
         Auth::login($user);
 
-        return redirect('/dashboard');
+        return redirect($this->getDefaultRedirectPath($user));
     }
 
     public function logout(Request $request)
