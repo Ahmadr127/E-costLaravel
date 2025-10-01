@@ -121,12 +121,19 @@
                         </td>
                         <!-- Bagian 2: Info per pasien, margin, grand total (semua rata kiri) di bawah kolom Jenis Pemeriksaan -->
                         <td class="px-3 py-2 text-sm text-gray-700 font-medium">
-                            <div class="space-y-1">
-                                <div class="text-sm text-red-700 font-semibold" x-text="'Per pasien: Rp ' + (typeof perPatientPrice === 'undefined' ? '0' : formatNumber(perPatientPrice))"></div>
-                                <div class="text-sm text-red-700 font-semibold">Grand Total:</div>
-                                <div class="text-red-700 font-semibold" x-text="'Rp ' + formatNumber(grandTotal)"></div>
-                            </div>
-                        </td>
+    <div class="space-y-1">
+        <div class="text-base text-red-700 font-semibold" 
+             x-text="'Per pasien: Rp ' + (typeof perPatientPrice === 'undefined' ? '0' : formatNumber(perPatientPrice))">
+        </div>
+        <div class="text-base text-red-700 font-semibold">
+            Grand Total:
+        </div>
+        <div class="text-lg text-red-700 font-semibold" 
+             x-text="'Rp ' + formatNumber(grandTotal)">
+        </div>
+    </div>
+</td>
+
                         <!-- Empty cell for category column -->
                         <td class="px-3 py-2 text-sm text-gray-700 font-medium">
                             
