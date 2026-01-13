@@ -65,38 +65,57 @@ document.addEventListener('alpine:init', () => {
         <input type="number" min="0" step="1" x-model.number="form.simulation_qty" class="w-40 px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
       </div>
       <div>
-        <div class="flex items-center justify-between mb-1">
-          <label class="block text-xs text-gray-600">Daftar Tier</label>
+        <div class="flex items-center justify-between mb-2">
+          <label class="block text-xs text-gray-600">Tier Diskon</label>
           <button class="px-2 py-1 text-xs rounded-md border border-gray-300 hover:bg-gray-50" @click="addTier()">+ Tambah Tier</button>
         </div>
-        <div class="space-y-2">
-          <template x-for="(t, idx) in form.tiers" :key="idx">
-            <div class="grid grid-cols-12 gap-2 items-center">
-              <div class="col-span-3">
-                <input type="number" min="1" class="w-full px-2 py-1 border border-gray-300 rounded-md text-xs" x-model.number="t.min" placeholder="Min">
-              </div>
-              <div class="col-span-3">
-                <input type="number" min="1" class="w-full px-2 py-1 border border-gray-300 rounded-md text-xs" x-model.number="t.max" placeholder="Max (kosong = unlimited)">
-              </div>
-              <div class="col-span-3">
-                <div class="flex items-center">
-                  <input type="number" min="0" max="100" step="0.01" class="w-full px-2 py-1 border border-gray-300 rounded-md text-xs" x-model.number="t.percent" placeholder="%">
-                  <span class="ml-1 text-gray-500 text-xs">%</span>
-                </div>
-              </div>
-              <div class="col-span-3 text-right">
-                <button class="px-2 py-1 text-xs rounded-md bg-red-600 text-white" @click="removeTier(idx)">Hapus</button>
-              </div>
-            </div>
-          </template>
+        <div class="overflow-x-auto">
+          <table class="min-w-full divide-y divide-gray-200 border border-gray-300 rounded-md">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Min Qty</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Max Qty</th>
+                <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Diskon (%)</th>
+                <th class="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase w-24">Aksi</th>
+              </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+              <template x-for="(t, idx) in form.tiers" :key="idx">
+                <tr class="hover:bg-gray-50">
+                  <td class="px-3 py-2">
+                    <input type="number" min="1" class="w-full px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500" x-model.number="t.min" placeholder="Min">
+                  </td>
+                  <td class="px-3 py-2">
+                    <input type="number" min="1" class="w-full px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500" x-model.number="t.max" placeholder="Kosongkan untuk unlimited">
+                  </td>
+                  <td class="px-3 py-2">
+                    <div class="flex items-center">
+                      <input type="number" min="0" max="100" step="0.01" class="w-full px-2 py-1 border border-gray-300 rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-green-500" x-model.number="t.percent" placeholder="0">
+                      <span class="ml-1 text-gray-500 text-xs">%</span>
+                    </div>
+                  </td>
+                  <td class="px-3 py-2 text-center">
+                    <button class="px-2 py-1 text-xs rounded-md bg-red-600 text-white hover:bg-red-700" @click="removeTier(idx)" title="Hapus tier">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              </template>
+              <tr x-show="form.tiers.length === 0">
+                <td colspan="4" class="px-3 py-4 text-center text-sm text-gray-500">
+                  Belum ada tier. Klik "Tambah Tier" untuk menambahkan.
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
       <div class="flex items-center justify-end">
-        <button class="px-3 py-1.5 text-xs rounded-md bg-green-600 text-white hover:bg-green-700" @click="save()">Simpan</button>
+        <button class="px-3 py-1.5 text-xs rounded-md bg-green-600 text-white hover:bg-green-700" @click="save()">
+          <i class="fas fa-save mr-1"></i> Simpan
+        </button>
       </div>
     </div>
   </div>
 </div>
 @endsection
-
-

@@ -50,7 +50,7 @@ window.simulationQtyApp = function simulationQtyApp() {
                 await this.loadPresets();
                 this.applyDefaultPreset();
                 await this.refreshSavedSimulations();
-            } catch {}
+            } catch { }
         },
 
         formatNumber(number) {
@@ -179,7 +179,7 @@ window.simulationQtyApp = function simulationQtyApp() {
                 unit_cost: Math.round(Number(layanan.unit_cost) || 0),
                 tarif_master: Math.round(Number(layanan.tarif_master) || 0),
             };
-            
+
             this.simulationResults.push(item);
 
             this.searchResults = [];
@@ -201,9 +201,9 @@ window.simulationQtyApp = function simulationQtyApp() {
         // NEW ARCHITECTURE: Simulation-level calculation functions
         updateSimulationTotals() {
             // Calculate totals
-            this.totalUnitCost = this.simulationResults.reduce((sum, item) => 
+            this.totalUnitCost = this.simulationResults.reduce((sum, item) =>
                 sum + Math.round(Number(item.unit_cost) || 0), 0);
-            this.sumTarifMaster = this.simulationResults.reduce((sum, item) => 
+            this.sumTarifMaster = this.simulationResults.reduce((sum, item) =>
                 sum + Math.round(Number(item.tarif_master) || 0), 0);
 
             // Piecewise margin by tiers (as markup) based on total Unit Cost
@@ -286,7 +286,7 @@ window.simulationQtyApp = function simulationQtyApp() {
 
         toggleBreakdownVisibility() {
             this.showBreakdown = !this.showBreakdown;
-            
+
             // If showing breakdown, ensure we have data to display
             if (this.showBreakdown && this.simulationResults.length > 0) {
                 // Always update breakdown to ensure fresh data is displayed
@@ -312,7 +312,10 @@ window.simulationQtyApp = function simulationQtyApp() {
             this.breakdownRows = [];
             this.defaultTierUsed = false;
             this.showBreakdown = false;
-            
+            this.activeSimulationId = '';
+            this.saveName = '';
+            this.isEditingExisting = false;
+
             // Apply preset qty
             this.applyPresetQty();
         },
@@ -320,11 +323,10 @@ window.simulationQtyApp = function simulationQtyApp() {
         // Notifications (copy from base)
         showNotification(message, type = 'info') {
             const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm ${
-                type === 'success' ? 'bg-green-500 text-white' : 
-                type === 'warning' ? 'bg-yellow-500 text-white' : 
-                'bg-blue-500 text-white'
-            }`;
+            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm ${type === 'success' ? 'bg-green-500 text-white' :
+                type === 'warning' ? 'bg-yellow-500 text-white' :
+                    'bg-blue-500 text-white'
+                }`;
             notification.innerHTML = `
                 <div class="flex items-center">
                     <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'} mr-2"></i>
@@ -338,6 +340,10 @@ window.simulationQtyApp = function simulationQtyApp() {
         // Save, load, delete adapted with quantity
         promptSaveSimulation() {
             if (this.simulationResults.length === 0) { this.showNotification('Tidak ada data untuk disimpan', 'warning'); return; }
+            // Reset nama jika bukan editing simulasi yang ada
+            if (!this.activeSimulationId) {
+                this.saveName = '';
+            }
             this.showSaveModal = true;
         },
 
@@ -350,7 +356,7 @@ window.simulationQtyApp = function simulationQtyApp() {
                 if (!res.ok) return;
                 const data = await res.json();
                 this.savedSimulations = data.data || [];
-            } catch {}
+            } catch { }
         },
 
         get filteredSavedSimulations() {
@@ -372,7 +378,7 @@ window.simulationQtyApp = function simulationQtyApp() {
                 const sim = data.data;
                 const items = sim.items || [];
                 if (items.length === 0) { this.simulationResults = []; this.updateSimulationTotals(); return; }
-                
+
                 // set preset and default margin from saved simulation
                 if (sim.tier_preset_id != null) {
                     this.activePresetId = sim.tier_preset_id;
@@ -381,13 +387,13 @@ window.simulationQtyApp = function simulationQtyApp() {
                 if (typeof sim.default_margin_percent !== 'undefined' && sim.default_margin_percent !== null) {
                     this.defaultMarginPercent = Number(sim.default_margin_percent) || 0;
                 }
-                
+
                 // NEW ARCHITECTURE: Load simulation-level data
                 this.simulationQuantity = (sim.simulation_quantity ?? 0);
                 this.simulationMarginPercent = (sim.simulation_margin_percent ?? 0);
                 this.totalUnitCost = sim.total_unit_cost || 0;
                 this.totalMarginValue = sim.total_margin_value || 0;
-                
+
                 this.simulationResults = items.map(item => ({
                     id: item.layanan_id,
                     layanan_id: item.layanan_id,
@@ -398,7 +404,7 @@ window.simulationQtyApp = function simulationQtyApp() {
                     kategori_id: item.kategori_id || null,
                     kategori_nama: item.kategori_nama || '',
                 }));
-                
+
                 this.updateSimulationTotals();
                 this.activeSimulationId = sim.id;
                 this.saveName = sim.name || '';
@@ -468,7 +474,7 @@ window.simulationQtyApp = function simulationQtyApp() {
                 const n = Number(num) || 0;
                 return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
             };
-            const headers = ['No','Kode','Jenis Pemeriksaan','Qty','Tarif Master','Unit Cost','Margin (%)','Nilai Margin (Rp)','Tarif (Satuan)','Subtotal'];
+            const headers = ['No', 'Kode', 'Jenis Pemeriksaan', 'Qty', 'Tarif Master', 'Unit Cost', 'Margin (%)', 'Nilai Margin (Rp)', 'Tarif (Satuan)', 'Subtotal'];
             const rows = this.simulationResults.map((item, index) => [
                 index + 1,
                 item.kode,
@@ -484,8 +490,8 @@ window.simulationQtyApp = function simulationQtyApp() {
             const totalsRow = ['', '', 'Total', '', formatAccounting(this.sumTarifMaster), formatAccounting(this.sumUnitCost), '', '', '', formatAccounting(this.grandTotal)];
             const csvLines = [];
             csvLines.push(headers.join(','));
-            rows.forEach(r => csvLines.push(r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')));
-            csvLines.push(totalsRow.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','));
+            rows.forEach(r => csvLines.push(r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')));
+            csvLines.push(totalsRow.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
             const csv = csvLines.join('\r\n');
             this.downloadCSV(csv, 'simulasi-unit-cost-qty.csv');
         },
@@ -503,7 +509,7 @@ window.simulationQtyApp = function simulationQtyApp() {
         },
 
         // NEW ARCHITECTURE: Default margin changed by user in UI
-        onDefaultMarginChange() { 
+        onDefaultMarginChange() {
             this.updateSimulationTotals();
         },
 
@@ -542,23 +548,23 @@ window.simulationQtyApp = function simulationQtyApp() {
         openTierEditor() {
             const preset = this.tierPresets.find(p => String(p.id) === String(this.activePresetId));
             if (!preset) return;
-            this.tierForm = { 
-                id: preset.id, 
-                name: preset.name, 
+            this.tierForm = {
+                id: preset.id,
+                name: preset.name,
                 simulation_qty: (preset.simulation_qty ?? 0),
-                is_default: !!preset.is_default, 
-                tiers: (preset.tiers || []).map(cloneTier) 
+                is_default: !!preset.is_default,
+                tiers: (preset.tiers || []).map(cloneTier)
             };
             this.showTierModal = true;
         },
 
         openTierCreator() {
-            this.tierForm = { 
-                id: null, 
-                name: '', 
+            this.tierForm = {
+                id: null,
+                name: '',
                 simulation_qty: 0,
-                is_default: false, 
-                tiers: [] 
+                is_default: false,
+                tiers: []
             };
             this.showTierModal = true;
         },
@@ -570,11 +576,11 @@ window.simulationQtyApp = function simulationQtyApp() {
 
         async savePreset() {
             const cleanedTiers = (this.tierForm.tiers || []).filter(t => t.min != null && String(t.min).trim() !== '').map(normalizeTier);
-            const payload = { 
-                name: (this.tierForm.name || '').trim(), 
+            const payload = {
+                name: (this.tierForm.name || '').trim(),
                 simulation_qty: (this.tierForm.simulation_qty ?? 0),
-                is_default: !!this.tierForm.is_default, 
-                tiers: cleanedTiers 
+                is_default: !!this.tierForm.is_default,
+                tiers: cleanedTiers
             };
             if (!payload.name || payload.tiers.length === 0) { this.showNotification('Nama dan tier wajib diisi', 'warning'); return; }
             if (payload.simulation_qty < 0) { this.showNotification('Qty simulasi tidak boleh negatif', 'warning'); return; }

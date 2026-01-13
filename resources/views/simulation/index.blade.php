@@ -18,108 +18,63 @@
 
 @section('content')
 <div x-data="simulationApp()" class="space-y-4">
-    <!-- Header & Search Section -->
-    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-        <div class="flex items-center justify-between mb-4">
-            <div>
-                <h1 class="text-xl font-bold text-gray-900">Simulasi Unit Cost</h1>
-                <p class="text-sm text-gray-600">Hitung unit cost berdasarkan layanan yang dipilih</p>
-            </div>
-            <div class="flex items-center space-x-2">
-                <div class="hidden md:flex items-center space-x-2 mr-2">
-                    <button type="button" class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-2.5 py-1.5 text-xs bg-green-600 text-white hover:bg-green-700 focus:ring-green-500" @click="promptSaveSimulation()">
-                        <i class="fas fa-save mr-1"></i> Simpan
-                    </button>
-                    <button type="button" class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-2.5 py-1.5 text-xs bg-red-600 text-white hover:bg-red-700 focus:ring-red-500" @click="deleteActiveSimulation()" x-bind:disabled="!activeSimulationId">
-                        <i class="fas fa-trash mr-1"></i> Hapus
-                    </button>
-                </div>
-                <button 
-                    type="button"
-                    class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-3 py-1.5 text-xs bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                    @click="exportResults()"
-                    x-bind:disabled="simulationResults.length === 0">
-                    <i class="fas fa-download mr-1"></i>
-                    Export
-                </button>
-                <button 
-                    type="button"
-                    class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-3 py-1.5 text-xs bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500"
-                    @click="resetSimulation()">
-                    <i class="fas fa-refresh mr-1"></i>
-                    Reset
-                </button>
-            </div>
-        </div>
-        
-        <div class="relative">
-            <label for="search" class="block text-sm font-medium text-gray-700 mb-1">
-                Cari Layanan
-            </label>
-            <input type="text" 
-                   id="search" 
-                   name="search"
-                   x-model="searchQuery"
-                   @input="searchLayanan($event.target.value)"
-                   @focus="if(searchResults.length > 0) showDropdown = true"
-                   @blur="setTimeout(() => { if (!document.activeElement || !document.activeElement.closest('[x-show*=\"showDropdown\"]')) showDropdown = false; }, 200)"
-                   @keydown="handleSearchKeydown($event)"
-                   placeholder="Masukkan kode atau jenis pemeriksaan..."
-                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
-            
-            <!-- Dropdown Results -->
-            <div x-show="showDropdown && searchResults.length > 0" 
-                 x-transition:enter="transition ease-out duration-100"
-                 x-transition:enter-start="transform opacity-0 scale-95"
-                 x-transition:enter-end="transform opacity-100 scale-100"
-                 x-transition:leave="transition ease-in duration-75"
-                 x-transition:leave-start="transform opacity-100 scale-100"
-                 x-transition:leave-end="transform opacity-0 scale-95"
-                 class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-80 overflow-y-auto">
-                <div class="divide-y divide-gray-100">
-                    <template x-for="(result, index) in searchResults" :key="result.id">
-                        <div class="px-2 py-1.5 hover:bg-gray-50 border-b border-gray-50 last:border-b-0" 
-                             :class="selectedSearchIndex === index ? 'bg-blue-50 border-blue-200' : ''"
-                             @mouseenter="selectedSearchIndex = index">
-                            <div class="flex justify-between items-center">
-                                <div class="flex-1 min-w-0">
-                                    <p class="text-xs font-medium text-gray-900 truncate" x-text="result.kode + ' - ' + result.jenis_pemeriksaan"></p>
-                                    <p class="text-[10px] text-gray-500" x-text="result.tarif_master ? ('Tarif: ' + result.tarif_master) : ''"></p>
-                                </div>
-                                <div class="flex items-center gap-2 ml-2 flex-shrink-0">
-                                    <div class="text-right">
-                                        <p class="text-xs font-semibold text-green-600" x-text="'Rp ' + formatNumber(result.unit_cost)"></p>
-                                    </div>
-                                    <button type="button" 
-                                            class="inline-flex items-center px-2 py-1 text-xs font-medium text-white bg-green-600 border border-transparent rounded hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-1"
-                                            @click="addLayananToSimulation(result)"
-                                            :tabindex="selectedSearchIndex === index ? 0 : -1">
-                                        Pilih
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-            </div>
-            
-            <!-- Loading indicator in dropdown -->
-            <div x-show="isSearching" 
-                 class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg">
-                <div class="flex items-center justify-center py-2">
-                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-green-600"></div>
-                    <span class="ml-2 text-gray-600 text-xs">Mencari...</span>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Main 2-column layout: 70% simulation, 30% saved simulations -->
+    <!-- Main 2-column layout: Left = Simulation, Right = Saved Simulations -->
     <div class="grid grid-cols-1 lg:grid-cols-10 gap-4">
         <!-- Left: Simulation (span 7) -->
         <div class="lg:col-span-7 space-y-4">
-            <!-- Simulation Results -->
-            <div x-show="simulationResults.length > 0" class="bg-white rounded-lg shadow-sm border border-gray-200">
+            <!-- Header, Search & Simulation Results in ONE CARD -->
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <!-- Header with Action Buttons -->
+                <div class="p-4 border-b border-gray-200">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h1 class="text-xl font-bold text-gray-900">Simulasi Unit Cost</h1>
+                            <p class="text-sm text-gray-600">Hitung unit cost berdasarkan layanan yang dipilih</p>
+                            <!-- Active Simulation Badge -->
+                            <div x-show="activeSimulationId" class="mt-1.5">
+                                <span class="inline-flex items-center text-xs font-medium text-blue-700">
+                                    <span x-text="saveName" class="font-semibold"></span>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <div class="flex items-center space-x-1">
+                                <button type="button" class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-2.5 py-1.5 text-xs bg-green-600 text-white hover:bg-green-700 focus:ring-green-500" @click="promptSaveSimulation()">
+                                    <i class="fas fa-save mr-1"></i> Simpan
+                                </button>
+                                <button type="button" class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-2.5 py-1.5 text-xs bg-red-600 text-white hover:bg-red-700 focus:ring-red-500" @click="deleteActiveSimulation()" x-bind:disabled="!activeSimulationId">
+                                    <i class="fas fa-trash mr-1"></i> Hapus
+                                </button>
+                            </div>
+                            <button 
+                                type="button"
+                                class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-3 py-1.5 text-xs bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                                @click="exportResults()"
+                                x-bind:disabled="simulationResults.length === 0">
+                                <i class="fas fa-download mr-1"></i>
+                                Export
+                            </button>
+                            <button 
+                                type="button"
+                                class="inline-flex items-center justify-center font-medium rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 transition-colors duration-200 px-3 py-1.5 text-xs bg-gray-600 text-white hover:bg-gray-700 focus:ring-gray-500"
+                                @click="resetSimulation()">
+                                <i class="fas fa-refresh mr-1"></i>
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Search Box -->
+                    <div @layanan-selected.window="addLayananToSimulation($event.detail)">
+                        <x-layanan-search 
+                            label="Cari Layanan"
+                            placeholder="Masukkan kode atau jenis pemeriksaan..."
+                        />
+                    </div>
+                </div>
+
+                <!-- Simulation Results Table -->
+                <div x-show="simulationResults.length > 0">
         <div class="p-3 border-b border-gray-200">
             <h2 class="text-base font-semibold text-gray-900">Hasil Simulasi</h2>
         </div>
@@ -230,12 +185,13 @@
             </div>
 
             <!-- Empty State -->
-            <div x-show="simulationResults.length === 0" class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <div x-show="simulationResults.length === 0" class="p-8 text-center">
                 <div class="flex flex-col items-center">
                     <i class="fas fa-calculator text-4xl text-gray-300 mb-3"></i>
                     <h3 class="text-base font-medium text-gray-900 mb-1">Belum ada simulasi</h3>
                     <p class="text-sm text-gray-500">Pilih layanan dan tambahkan ke simulasi untuk memulai perhitungan unit cost</p>
                 </div>
+            </div>
             </div>
         </div>
 
@@ -271,10 +227,10 @@
                                     </p>
                                 </div>
                                 <div class="flex-shrink-0 flex items-center gap-1">
-                                    <button class="px-2 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700" @click="loadSimulation(item.id)">
+                                    <button class="px-2 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700" @click="loadSimulation(item.id)" title="Muat dan edit simulasi">
                                         Muat
                                     </button>
-                                    <button class="px-2 py-1 text-[11px] bg-red-600 text-white rounded hover:bg-red-700" @click="deleteSaved(item.id)">
+                                    <button class="px-2 py-1 text-[11px] bg-red-600 text-white rounded hover:bg-red-700" @click="deleteSaved(item.id)" title="Hapus simulasi">
                                         Hapus
                                     </button>
                                 </div>

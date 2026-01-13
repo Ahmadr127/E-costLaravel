@@ -187,7 +187,7 @@
         </div>
 
         <!-- Table using responsive-table component -->
-        <x-responsive-table :headers="['No','Kode','Jenis Pemeriksaan','Kategori','Tarif Master','Unit Cost','Aksi']" minWidth="1100px">
+        <x-responsive-table :headers="['No','Kode','Jenis Pemeriksaan','Kategori','Tarif Master','Unit Cost','Aksi']" minWidth="100%">
             @forelse($layanan as $index => $item)
             <tr class="hover:bg-gray-50" x-data="{ openEdit:false }">
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ ($layanan->firstItem() ?? 0) + $index }}</td>

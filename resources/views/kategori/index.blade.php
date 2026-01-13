@@ -60,7 +60,7 @@
         </div>
 
         <!-- Table using responsive-table component -->
-        <x-responsive-table :headers="['No','Nama Kategori','Deskripsi','Jumlah Layanan','Status','Dibuat','Aksi']" minWidth="950px">
+        <x-responsive-table :headers="['No','Nama Kategori','Deskripsi','Jumlah Layanan','Status','Dibuat','Aksi']" minWidth="100%">
             @forelse($kategori as $index => $item)
             <tr class="hover:bg-gray-50" x-data="{ openShow:false, openEdit:false }">
                 <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{{ ($kategori->firstItem() ?? 0) + $index }}</td>

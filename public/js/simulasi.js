@@ -44,7 +44,7 @@ window.simulationApp = function simulationApp() {
         async searchLayanan(query) {
             console.log('searchLayanan called with:', query);
             this.searchQuery = query;
-            
+
             if (query.length < 2) {
                 this.searchResults = [];
                 this.isSearching = false;
@@ -61,7 +61,7 @@ window.simulationApp = function simulationApp() {
                 try {
                     const url = `${window.SIMULATION_SEARCH_URL}?search=${encodeURIComponent(query)}`;
                     console.log('Making request to:', url);
-                    
+
                     const response = await fetch(url, {
                         method: 'GET',
                         headers: {
@@ -72,15 +72,15 @@ window.simulationApp = function simulationApp() {
                         },
                         credentials: 'same-origin'
                     });
-                    
+
                     console.log('Response status:', response.status);
-                    
+
                     if (!response.ok) {
                         const errorText = await response.text();
                         console.error('Error response:', errorText);
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
-                    
+
                     const data = await response.json();
                     console.log('Response data:', data);
                     this.searchResults = data.data || [];
@@ -135,7 +135,7 @@ window.simulationApp = function simulationApp() {
 
         addLayananToSimulation(layanan) {
             const existingIndex = this.simulationResults.findIndex(item => item.id === layanan.id);
-            
+
             if (existingIndex !== -1) {
                 // Item already exists, show message
                 this.showNotification('Layanan ini sudah ada dalam simulasi', 'warning');
@@ -147,7 +147,7 @@ window.simulationApp = function simulationApp() {
                 const tarifMasterValue = Math.round(Number(layanan.tarif_master) || 0);
                 const marginValue = Math.round(unitCostValue * appliedMarginFraction);
                 const totalTarif = unitCostValue + marginValue;
-                
+
                 this.simulationResults.push({
                     ...layanan,
                     unit_cost: unitCostValue,
@@ -160,13 +160,13 @@ window.simulationApp = function simulationApp() {
                     kategori_id: layanan.kategori_id || null,
                     kategori_nama: layanan.kategori_nama || ''
                 });
-                
+
                 // Clear search results and close dropdown after adding
                 this.searchResults = [];
                 this.searchQuery = '';
                 this.showDropdown = false;
                 this.selectedSearchIndex = -1;
-                
+
                 // Show success notification
                 this.showNotification('Layanan berhasil ditambahkan ke simulasi', 'success');
             }
@@ -249,20 +249,19 @@ window.simulationApp = function simulationApp() {
         showNotification(message, type = 'info') {
             // Create notification element
             const notification = document.createElement('div');
-            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm ${
-                type === 'success' ? 'bg-green-500 text-white' : 
-                type === 'warning' ? 'bg-yellow-500 text-white' : 
-                'bg-blue-500 text-white'
-            }`;
+            notification.className = `fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg max-w-sm ${type === 'success' ? 'bg-green-500 text-white' :
+                type === 'warning' ? 'bg-yellow-500 text-white' :
+                    'bg-blue-500 text-white'
+                }`;
             notification.innerHTML = `
                 <div class="flex items-center">
                     <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'warning' ? 'fa-exclamation-triangle' : 'fa-info-circle'} mr-2"></i>
                     <span>${message}</span>
                 </div>
             `;
-            
+
             document.body.appendChild(notification);
-            
+
             // Remove notification after 3 seconds
             setTimeout(() => {
                 if (notification.parentNode) {
@@ -313,7 +312,7 @@ window.simulationApp = function simulationApp() {
                 return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
             };
 
-            const headers = ['No','Kode','Jenis Pemeriksaan','Kategori','Tarif Master','Unit Cost','Margin (%)','Nilai Margin (Rp)','Tarif (Unit Cost + Margin)'];
+            const headers = ['No', 'Kode', 'Jenis Pemeriksaan', 'Kategori', 'Tarif Master', 'Unit Cost', 'Margin (%)', 'Nilai Margin (Rp)', 'Tarif (Unit Cost + Margin)'];
             const rows = this.simulationResults.map((item, index) => [
                 index + 1,
                 item.kode,
@@ -337,8 +336,8 @@ window.simulationApp = function simulationApp() {
 
             const csvLines = [];
             csvLines.push(headers.join(','));
-            rows.forEach(r => csvLines.push(r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')));
-            csvLines.push(totalsRow.map(v => `"${String(v).replace(/"/g,'""')}"`).join(','));
+            rows.forEach(r => csvLines.push(r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')));
+            csvLines.push(totalsRow.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
 
             const csv = csvLines.join('\r\n');
             this.downloadCSV(csv, 'simulasi-unit-cost.csv');
@@ -346,11 +345,11 @@ window.simulationApp = function simulationApp() {
 
         async refreshSavedSimulations() {
             try {
-                const res = await fetch(window.SIMULATION_LIST_URL, { 
-                    headers: { 
+                const res = await fetch(window.SIMULATION_LIST_URL, {
+                    headers: {
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': window.CSRF_TOKEN
-                    } 
+                    }
                 });
                 if (!res.ok) {
                     console.error('Failed to fetch saved simulations:', res.status, res.statusText);
@@ -372,8 +371,8 @@ window.simulationApp = function simulationApp() {
         },
 
         openSaveModal() {
-            // Prefill with existing name if editing an active simulation
-            this.saveName = this.saveName && this.activeSimulationId ? this.saveName : '';
+            // Prefill with existing name ONLY if editing an active simulation
+            this.saveName = this.activeSimulationId ? this.saveName : '';
             this.selectedCategory = null;
             this.categoryModalSearch = '';
             this.categoryModalOptions = [];
@@ -384,11 +383,11 @@ window.simulationApp = function simulationApp() {
         async fetchCategoriesForModal(q = '') {
             try {
                 const url = `${window.SIMULATION_CATEGORIES_URL}?search=${encodeURIComponent(q)}`;
-                const res = await fetch(url, { 
-                    headers: { 
+                const res = await fetch(url, {
+                    headers: {
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': window.CSRF_TOKEN
-                    } 
+                    }
                 });
                 const data = await res.json();
                 this.categoryModalOptions = data.data || [];
@@ -475,25 +474,25 @@ window.simulationApp = function simulationApp() {
                 console.log('Loading simulation with ID:', id);
                 console.log('CSRF Token:', window.CSRF_TOKEN);
                 console.log('URL:', window.SIMULATION_SHOW_URL(id));
-                
-                const res = await fetch(window.SIMULATION_SHOW_URL(id), { 
-                    headers: { 
+
+                const res = await fetch(window.SIMULATION_SHOW_URL(id), {
+                    headers: {
                         'Accept': 'application/json',
                         'X-CSRF-TOKEN': window.CSRF_TOKEN
-                    } 
+                    }
                 });
-                
+
                 console.log('Response status:', res.status);
                 console.log('Response headers:', res.headers);
-                if (!res.ok) { 
+                if (!res.ok) {
                     if (res.status === 403) {
-                        this.showNotification('Tidak memiliki akses ke simulasi ini', 'warning'); 
+                        this.showNotification('Tidak memiliki akses ke simulasi ini', 'warning');
                     } else if (res.status === 404) {
-                        this.showNotification('Simulasi tidak ditemukan', 'warning'); 
+                        this.showNotification('Simulasi tidak ditemukan', 'warning');
                     } else {
-                        this.showNotification('Gagal memuat simulasi', 'warning'); 
+                        this.showNotification('Gagal memuat simulasi', 'warning');
                     }
-                    return; 
+                    return;
                 }
                 const data = await res.json();
                 const sim = data.data;
@@ -577,7 +576,7 @@ window.simulationApp = function simulationApp() {
             link.click();
             document.body.removeChild(link);
         },
-        
+
         formatDateAgo(iso) {
             try {
                 const then = new Date(iso);
@@ -597,11 +596,11 @@ window.simulationApp = function simulationApp() {
         // Category helpers
         async fetchCategories(q = '', idx = null) {
             const url = `${window.SIMULATION_CATEGORIES_URL}?search=${encodeURIComponent(q)}`;
-            const res = await fetch(url, { 
-                headers: { 
+            const res = await fetch(url, {
+                headers: {
                     'Accept': 'application/json',
                     'X-CSRF-TOKEN': window.CSRF_TOKEN
-                } 
+                }
             });
             const data = await res.json();
             const options = data.data || [];
@@ -618,10 +617,12 @@ window.simulationApp = function simulationApp() {
             item.kategori_id = opt.id;
             item.kategori_nama = opt.nama_kategori;
         },
-        
+
         resetSimulation() {
             this.simulationResults = [];
             this.grandTotal = 0;
+            this.activeSimulationId = '';
+            this.saveName = '';
             this.clearSelection();
         }
     }
