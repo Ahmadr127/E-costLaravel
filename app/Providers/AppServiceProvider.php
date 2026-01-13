@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Pagination\Paginator;
 
@@ -20,13 +21,13 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Force HTTPS in production
-        if (app()->environment('production')) {
-            \Illuminate\Support\Facades\URL::forceScheme('https');
-        }
-
         // Register custom middleware
         $this->app['router']->aliasMiddleware('permission', \App\Http\Middleware\CheckPermission::class);
+        
+        // Force HTTPS in production (required for Cloudflare/reverse proxy)
+        if ($this->app->environment('production')) {
+            URL::forceScheme('https');
+        }
 
         // Use custom Tailwind pagination view
         Paginator::defaultView('components.pagination');
