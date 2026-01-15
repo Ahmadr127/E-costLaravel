@@ -470,28 +470,27 @@ window.simulationQtyApp = function simulationQtyApp() {
 
         exportResults() {
             if (this.simulationResults.length === 0) return;
-            const formatAccounting = (num) => {
-                const n = Number(num) || 0;
-                return new Intl.NumberFormat('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+            const formatRupiah = (num) => {
+                const n = Math.round(Number(num) || 0);
+                return 'Rp ' + new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(n);
             };
-            const headers = ['No', 'Kode', 'Jenis Pemeriksaan', 'Qty', 'Tarif Master', 'Unit Cost', 'Margin (%)', 'Nilai Margin (Rp)', 'Tarif (Satuan)', 'Subtotal'];
+            // Headers sesuai tampilan di halaman: No, Kode, Jenis Pemeriksaan, Kategori
+            const headers = ['No', 'Kode', 'Jenis Pemeriksaan', 'Kategori'];
             const rows = this.simulationResults.map((item, index) => [
                 index + 1,
                 item.kode,
                 item.jenis_pemeriksaan,
-                item.quantity,
-                formatAccounting(item.tarif_master),
-                formatAccounting(item.unit_cost),
-                (item.marginPercentage * 100).toFixed(2) + '%',
-                formatAccounting(item.marginValue),
-                formatAccounting(item.totalTarif),
-                formatAccounting(item.subtotal)
+                item.kategori_nama || '-'
             ]);
-            const totalsRow = ['', '', 'Total', '', formatAccounting(this.sumTarifMaster), formatAccounting(this.sumUnitCost), '', '', '', formatAccounting(this.grandTotal)];
             const csvLines = [];
             csvLines.push(headers.join(','));
             rows.forEach(r => csvLines.push(r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')));
-            csvLines.push(totalsRow.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+            // Tambahkan baris kosong sebagai pemisah
+            csvLines.push('');
+            // Tambahkan informasi Qty, Per Pasien, dan Grand Total
+            csvLines.push(`"Qty:","${this.simulationQuantity}","",""`);
+            csvLines.push(`"Per pasien:","${formatRupiah(this.perPatientPrice)}","",""`);
+            csvLines.push(`"Grand Total:","${formatRupiah(this.grandTotal)}","",""`);
             const csv = csvLines.join('\r\n');
             this.downloadCSV(csv, 'simulasi-unit-cost-qty.csv');
         },

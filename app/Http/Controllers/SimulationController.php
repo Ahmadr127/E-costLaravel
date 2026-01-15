@@ -156,20 +156,23 @@ class SimulationController extends Controller
         $query = Layanan::with('kategori')
             ->where('is_active', true);
 
-        // Jika parameter 'all' ada, return semua layanan (dengan limit untuk safety)
+        // Jika parameter 'all' ada, return semua layanan (tanpa limit untuk dropdown)
         if ($request->has('all')) {
-            $layanan = $query->limit(100)->get();
+            $layanan = $query->orderBy('jenis_pemeriksaan')->get();
         } else {
             // Jika ada search query, filter berdasarkan search
             if ($request->filled('search')) {
                 $search = $request->search;
                 $query->where(function($q) use ($search) {
                     $q->where('kode', 'like', "%{$search}%")
-                      ->orWhere('jenis_pemeriksaan', 'like', "%{$search}%");
+                      ->orWhere('jenis_pemeriksaan', 'like', "%{$search}%")
+                      ->orWhereHas('kategori', function($kq) use ($search) {
+                          $kq->where('nama_kategori', 'like', "%{$search}%");
+                      });
                 });
             }
             
-            $layanan = $query->limit(20)->get();
+            $layanan = $query->limit(50)->get();
         }
 
         return response()->json([

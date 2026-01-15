@@ -31,6 +31,47 @@
                 list: {!! $kategori->map(fn($k) => ['id' => $k->id, 'name' => $k->nama_kategori])->values()->toJson() !!}
             });
         }
+        if (!Alpine.store('searchSuggestions')) {
+            Alpine.store('searchSuggestions', {
+                list: {!! $allLayanan->map(fn($l) => [
+                    'kode' => $l->kode,
+                    'value' => $l->jenis_pemeriksaan ?: $l->kode,
+                    'label' => ($l->kode ? $l->kode . ' - ' : '') . ($l->jenis_pemeriksaan ?: 'N/A')
+                ])->filter(fn($s) => !empty($s['value']))->unique('value')->values()->toJson() !!}
+            });
+        }
+        
+        // Register searchDropdown component
+        Alpine.data('searchDropdown', (initialValue = '') => ({
+            open: false,
+            searchValue: initialValue,
+            searchQuery: '',
+            get suggestions() {
+                return Alpine.store('searchSuggestions')?.list || [];
+            },
+            get filtered() {
+                if (!this.searchQuery || this.searchQuery.length < 1) {
+                    return this.suggestions.slice(0, 20);
+                }
+                const query = this.searchQuery.toLowerCase();
+                return this.suggestions.filter(s => 
+                    (s.kode && s.kode.toLowerCase().includes(query)) ||
+                    (s.value && s.value.toLowerCase().includes(query)) ||
+                    (s.label && s.label.toLowerCase().includes(query))
+                ).slice(0, 50);
+            },
+            filterSuggestions() {
+                // Method dipanggil saat input berubah (untuk reactive update)
+            },
+            selectSuggestion(value) {
+                this.searchValue = value;
+                this.searchQuery = '';
+                this.open = false;
+                this.$nextTick(() => {
+                    document.getElementById('filterForm').submit();
+                });
+            }
+        }));
     });
     </script>
 
@@ -145,20 +186,153 @@
     <!-- Filter Bar -->
     <div class="bg-white rounded-lg shadow-sm border border-gray-200">
         <div class="p-6 border-b border-gray-200">
-            <form method="GET" class="space-y-4">
+            <form method="GET" action="{{ route('layanan.index') }}" class="space-y-4" id="filterForm">
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-end">
-                    <div>
-                        <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Pencarian</label>
-                        <input type="text" id="search" name="search" value="{{ request('search') }}" placeholder="Cari kode, jenis pemeriksaan, kategori, deskripsi, atau unit cost..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
+                    <!-- Search Dropdown (sama seperti Kategori) -->
+                    <div x-data="searchDropdown('{{ addslashes(request('search')) }}')">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Pencarian</label>
+                        <input type="hidden" name="search" :value="searchValue">
+                        <div class="relative">
+                            <button 
+                                type="button" 
+                                @click="open = !open" 
+                                class="w-full px-3 py-2 pr-10 text-left border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            >
+                                <span x-text="searchValue || 'Semua Layanan'" :class="searchValue ? 'text-gray-900' : 'text-gray-500'"></span>
+                                <span class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                    <i class="fas fa-chevron-down text-gray-400"></i>
+                                </span>
+                            </button>
+                            
+                            <div 
+                                x-show="open" 
+                                @click.outside="open = false"
+                                x-transition
+                                class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg"
+                                style="display: none;"
+                            >
+                                <!-- Search Input -->
+                                <div class="p-2 border-b border-gray-200">
+                                    <input 
+                                        type="text" 
+                                        x-model="searchQuery"
+                                        @input="filterSuggestions()"
+                                        placeholder="Cari layanan..." 
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        @click.stop
+                                    >
+                                </div>
+                                
+                                <!-- Options -->
+                                <ul class="max-h-48 overflow-y-auto py-1">
+                                    <li 
+                                        @click="selectSuggestion('')"
+                                        class="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                                        :class="!searchValue ? 'bg-green-50' : ''"
+                                    >
+                                        <span>Semua Layanan</span>
+                                        <i x-show="!searchValue" class="fas fa-check text-green-600"></i>
+                                    </li>
+                                    <template x-for="(item, index) in filtered" :key="index">
+                                        <li 
+                                            @click="selectSuggestion(item.value)"
+                                            class="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                                            :class="searchValue === item.value ? 'bg-green-50' : ''"
+                                        >
+                                            <span x-text="item.label || item.value"></span>
+                                            <i x-show="searchValue === item.value" class="fas fa-check text-green-600"></i>
+                                        </li>
+                                    </template>
+                                </ul>
+                                
+                                <div x-show="filtered.length === 0 && searchQuery" class="px-3 py-2 text-sm text-gray-500 text-center">
+                                    Tidak ditemukan
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div>
-                        <label for="kategori_id" class="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
-                        <select name="kategori_id" id="kategori_id" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent">
-                            <option value="">Semua Kategori</option>
-                            @foreach($kategori as $kat)
-                            <option value="{{ $kat->id }}" {{ request('kategori_id') == $kat->id ? 'selected' : '' }}>{{ $kat->nama_kategori }}</option>
-                            @endforeach
-                        </select>
+                    
+                    <!-- Kategori Select with Search -->
+                    <div x-data="{
+                        open: false,
+                        search: '',
+                        selected: '{{ request('kategori_id') }}',
+                        selectedName: '{{ request('kategori_id') ? $kategori->firstWhere('id', request('kategori_id'))?->nama_kategori : '' }}',
+                        categories: {{ $kategori->map(fn($k) => ['id' => $k->id, 'name' => $k->nama_kategori])->values()->toJson() }},
+                        get filtered() {
+                            if (!this.search) return this.categories;
+                            return this.categories.filter(c => c.name.toLowerCase().includes(this.search.toLowerCase()));
+                        },
+                        select(id, name) {
+                            this.selected = id || '';
+                            this.selectedName = name || '';
+                            this.search = '';
+                            this.open = false;
+                            // Auto-submit form when category is selected
+                            this.$nextTick(() => {
+                                document.getElementById('filterForm').submit();
+                            });
+                        }
+                    }">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Kategori</label>
+                        <input type="hidden" name="kategori_id" :value="selected">
+                        <div class="relative">
+                            <button 
+                                type="button" 
+                                @click="open = !open" 
+                                class="w-full px-3 py-2 pr-10 text-left border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                            >
+                                <span x-text="selectedName || 'Semua Kategori'" :class="selectedName ? 'text-gray-900' : 'text-gray-500'"></span>
+                                <span class="absolute inset-y-0 right-0 flex items-center pr-3">
+                                    <i class="fas fa-chevron-down text-gray-400"></i>
+                                </span>
+                            </button>
+                            
+                            <div 
+                                x-show="open" 
+                                @click.outside="open = false"
+                                x-transition
+                                class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg"
+                                style="display: none;"
+                            >
+                                <!-- Search Input -->
+                                <div class="p-2 border-b border-gray-200">
+                                    <input 
+                                        type="text" 
+                                        x-model="search" 
+                                        placeholder="Cari kategori..." 
+                                        class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+                                        @click.stop
+                                    >
+                                </div>
+                                
+                                <!-- Options -->
+                                <ul class="max-h-48 overflow-y-auto py-1">
+                                    <li 
+                                        @click="select('', '')"
+                                        class="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                                        :class="!selected ? 'bg-green-50' : ''"
+                                    >
+                                        <span>Semua Kategori</span>
+                                        <i x-show="!selected" class="fas fa-check text-green-600"></i>
+                                    </li>
+                                    <template x-for="cat in filtered" :key="cat.id">
+                                        <li 
+                                            @click="select(cat.id, cat.name)"
+                                            class="px-3 py-2 hover:bg-gray-100 cursor-pointer flex items-center justify-between"
+                                            :class="String(selected) === String(cat.id) ? 'bg-green-50' : ''"
+                                        >
+                                            <span x-text="cat.name"></span>
+                                            <i x-show="String(selected) === String(cat.id)" class="fas fa-check text-green-600"></i>
+                                        </li>
+                                    </template>
+                                </ul>
+                                
+                                <div x-show="filtered.length === 0" class="px-3 py-2 text-sm text-gray-500 text-center">
+                                    Tidak ditemukan
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="flex flex-wrap gap-3 items-center justify-between">
@@ -167,7 +341,7 @@
                             <i class="fas fa-search mr-2"></i>Filter
                         </button>
                         @if(request()->hasAny(['search','kategori_id']))
-                        <a href="{{ request()->url() }}" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
+                        <a href="{{ route('layanan.index') }}" class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors">
                             <i class="fas fa-times mr-2"></i>Reset
                         </a>
                         @endif
@@ -292,4 +466,6 @@
         @endif
     </div>
 </div>
+
+
 @endsection

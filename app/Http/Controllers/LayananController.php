@@ -52,7 +52,14 @@ class LayananController extends Controller
         $layanan = $query->latest()->paginate(10)->withQueryString();
         $kategori = Kategori::active()->get();
         
-        return view('layanan.index', compact('layanan', 'kategori'));
+        // Ambil semua layanan untuk dropdown pencarian (tanpa filter, hanya kode dan jenis_pemeriksaan)
+        $allLayanan = Layanan::select('kode', 'jenis_pemeriksaan')
+            ->whereNotNull('jenis_pemeriksaan')
+            ->where('jenis_pemeriksaan', '!=', '')
+            ->orderBy('jenis_pemeriksaan')
+            ->get();
+        
+        return view('layanan.index', compact('layanan', 'kategori', 'allLayanan'));
     }
 
     /**
@@ -419,7 +426,7 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
     private $skippedCount = 0;
     private $currentRow = 0;
     private $columnMapping = [];
-    private $dataStartRow = 6;
+    private $dataStartRow = 2; // Default: data dimulai dari row 2 (setelah header)
 
     public function startRow(): int
     {
@@ -427,20 +434,21 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
     }
 
     /**
-     * Deteksi header otomatis dari 3 baris pertama
+     * Deteksi header otomatis dari baris pertama
      */
     public function detectHeaders($worksheet)
     {
         $headerPatterns = [
-            'kode' => ['kode', 'code', 'id', 'no'],
-            // Tambahkan variasi umum: "item wise", "item", "deskripsi"
-            'jenis_pemeriksaan' => ['jenis', 'pemeriksaan', 'nama', 'tindakan', 'layanan', 'item wise', 'item', 'deskripsi', 'description'],
-            'unit_cost' => ['unit cost', 'unitcost', 'cost', 'biaya', 'harga'],
-            'tarif_master' => ['tarif master', 'ii', 'igd', 'poli'] ,
-            // Perluas sinonim kategori
-            'kategori' => ['kategori', 'kategori layanan', 'category', 'bagian', 'unit', 'departemen', 'instalasi', 'kelompok', 'sub kategori', 'sub-kategori', 'section'],
-            'margin' => ['margin', 'keuntungan', 'profit'],
-            'tarif' => ['tarif', 'harga', 'price', 'fee']
+            // Kode: harus exact match atau contain 'kode'/'code', TIDAK termasuk 'no' atau 'id' karena ambigu
+            'kode' => ['kode', 'code'],
+            // Jenis pemeriksaan
+            'jenis_pemeriksaan' => ['jenis pemeriksaan', 'jenis', 'pemeriksaan', 'nama', 'tindakan', 'layanan', 'item wise', 'item', 'deskripsi', 'description'],
+            // Unit cost
+            'unit_cost' => ['unit cost', 'unitcost', 'cost', 'biaya'],
+            // Tarif master - lebih spesifik
+            'tarif_master' => ['tarif master', 'ii/ igd', 'ii/igd', 'igd/poli', 'tarif'],
+            // Kategori
+            'kategori' => ['kategori', 'category', 'bagian', 'unit', 'departemen', 'instalasi', 'kelompok', 'section'],
         ];
 
         $columnMapping = [];
@@ -487,21 +495,29 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
             $columnMapping['jenis_pemeriksaan'] = 1; // Default ke kolom B
         }
         if (empty($columnMapping['unit_cost'])) {
-            $columnMapping['unit_cost'] = 6; // Default ke kolom G
+            $columnMapping['unit_cost'] = 2; // Default ke kolom C (berdasarkan template)
         }
         // kategori dan tarif_master opsional: hanya dipakai jika ditemukan
 
         $this->columnMapping = $columnMapping;
         
-        // Tentukan baris data dimulai (cari baris pertama yang memiliki data di salah satu kolom kunci)
-        for ($row = 4; $row <= min(30, $highestRow); $row++) {
+        // Tentukan baris data dimulai - mulai dari row 2 (setelah header di row 1)
+        // Scan untuk menemukan baris pertama dengan data yang valid (bukan header)
+        for ($row = 2; $row <= min(15, $highestRow); $row++) {
             $kodeCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(($columnMapping['kode'] ?? 0) + 1);
             $jenisCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(($columnMapping['jenis_pemeriksaan'] ?? 1) + 1);
-            $kodeCell = $worksheet->getCell($kodeCol . $row)->getValue();
-            $jenisCell = $worksheet->getCell($jenisCol . $row)->getValue();
-            if ((isset($kodeCell) && trim((string)$kodeCell) !== '') || (isset($jenisCell) && trim((string)$jenisCell) !== '')) {
+            $kodeCell = trim((string)($worksheet->getCell($kodeCol . $row)->getValue() ?? ''));
+            $jenisCell = trim((string)($worksheet->getCell($jenisCol . $row)->getValue() ?? ''));
+            
+            // Skip jika masih header-like
+            $lowerKode = strtolower($kodeCell);
+            $lowerJenis = strtolower($jenisCell);
+            $isHeaderLike = in_array($lowerKode, ['kode', 'code', 'no', '#', '']) && 
+                           (strpos($lowerJenis, 'jenis') !== false || strpos($lowerJenis, 'pemeriksaan') !== false || empty($jenisCell));
+            
+            if (!$isHeaderLike && (!empty($kodeCell) || !empty($jenisCell))) {
                 $this->dataStartRow = $row;
-                \Log::info("Data start row detected: {$row}");
+                \Log::info("Data start row detected: {$row}", ['kode' => $kodeCell, 'jenis' => $jenisCell]);
                 break;
             }
         }
@@ -522,7 +538,25 @@ class LayananExcelImport implements ToModel, SkipsEmptyRows, SkipsOnError, WithC
         // Normalize empty string to null so it doesn't conflict with unique indexes or equality checks
         if ($kode === '') { $kode = null; }
         $jenisPemeriksaan = isset($row[$this->columnMapping['jenis_pemeriksaan']]) ? trim($row[$this->columnMapping['jenis_pemeriksaan']]) : '';
+        
+        // Parse unit_cost dengan fallback ke kolom lain jika kolom utama berisi data non-numerik (seperti ' - ')
         $unitCost = isset($row[$this->columnMapping['unit_cost']]) ? $this->parseUnitCost($row[$this->columnMapping['unit_cost']]) : null;
+        
+        // Fallback: jika unit_cost null, coba cari dari kolom lain yang berisi angka
+        if ($unitCost === null) {
+            $possibleCostColumns = [2, 3, 4, 5, 6]; // Kolom C, D, E, F, G
+            foreach ($possibleCostColumns as $colIdx) {
+                if (isset($row[$colIdx]) && $colIdx !== ($this->columnMapping['kategori'] ?? -1)) {
+                    $parsed = $this->parseUnitCost($row[$colIdx]);
+                    if ($parsed !== null && $parsed > 0) {
+                        $unitCost = $parsed;
+                        \Log::info("Unit cost fallback found at column {$colIdx}: {$unitCost}");
+                        break;
+                    }
+                }
+            }
+        }
+        
         $tarifMaster = isset($this->columnMapping['tarif_master']) && isset($row[$this->columnMapping['tarif_master']]) ? $this->normalizeTarifMaster(trim((string)$row[$this->columnMapping['tarif_master']])) : null;
         $kategoriName = isset($this->columnMapping['kategori']) && isset($row[$this->columnMapping['kategori']]) ? trim((string)$row[$this->columnMapping['kategori']]) : '';
 
