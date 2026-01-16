@@ -214,10 +214,21 @@
                     <template x-for="item in filteredSavedSimulations" :key="item.id">
                         <div class="px-3 py-2 hover:bg-gray-50">
                             <div class="flex items-start justify-between">
-                                <div class="min-w-0">
-                                    <div class="flex items-center gap-2">
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
                                         <p class="text-sm font-medium text-gray-900 truncate" x-text="item.name"></p>
                                         <span class="text-[10px] text-gray-500" x-text="formatDateAgo(item.updated_at)"></span>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 mb-1">
+                                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium" 
+                                              :class="item.is_owner ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-600'">
+                                            <i class="fas fa-user text-[8px] mr-1"></i>
+                                            <span x-text="item.user_name"></span>
+                                        </span>
+                                        <span x-show="item.is_owner" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700">
+                                            <i class="fas fa-check text-[8px] mr-1"></i>
+                                            Milik Saya
+                                        </span>
                                     </div>
                                     <p class="text-[11px] text-gray-500">
                                         <span x-text="item.items_count"></span> item · Total: <span class="font-medium" x-text="'Rp ' + formatNumber(item.grand_total)"></span>
@@ -226,11 +237,14 @@
                                         </template>
                                     </p>
                                 </div>
-                                <div class="flex-shrink-0 flex items-center gap-1">
+                                <div class="flex-shrink-0 flex items-center gap-1 ml-2">
                                     <button class="px-2 py-1 text-[11px] bg-blue-600 text-white rounded hover:bg-blue-700" @click="loadSimulation(item.id)" title="Muat dan edit simulasi">
                                         Muat
                                     </button>
-                                    <button class="px-2 py-1 text-[11px] bg-red-600 text-white rounded hover:bg-red-700" @click="deleteSaved(item.id)" title="Hapus simulasi">
+                                    <button 
+                                        class="px-2 py-1 text-[11px] bg-red-600 text-white rounded hover:bg-red-700" 
+                                        @click="deleteSaved(item.id)" 
+                                        :title="item.is_owner ? 'Hapus simulasi' : 'Hapus simulasi (dibuat oleh ' + item.user_name + ')'">
                                         Hapus
                                     </button>
                                 </div>

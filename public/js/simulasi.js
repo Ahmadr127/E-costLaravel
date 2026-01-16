@@ -425,6 +425,10 @@ window.simulationApp = function simulationApp() {
         },
 
         async saveSimulation(name) {
+            console.log('=== SAVE SIMULATION DEBUG ===');
+            console.log('activeSimulationId:', this.activeSimulationId);
+            console.log('saveName:', name);
+
             const payload = {
                 name,
                 notes: '',
@@ -447,6 +451,11 @@ window.simulationApp = function simulationApp() {
             const url = isUpdating ? window.SIMULATION_UPDATE_URL(this.activeSimulationId) : window.SIMULATION_STORE_URL;
             const method = isUpdating ? 'PUT' : 'POST';
 
+            console.log('isUpdating:', isUpdating);
+            console.log('method:', method);
+            console.log('url:', url);
+            console.log('payload:', payload);
+
             const res = await fetch(url, {
                 method,
                 headers: {
@@ -458,13 +467,22 @@ window.simulationApp = function simulationApp() {
             });
             if (!res.ok) {
                 const text = await res.text();
-                console.error(text);
+                console.error('Save failed:', text);
                 this.showNotification(isUpdating ? 'Gagal memperbarui simulasi' : 'Gagal menyimpan simulasi', 'warning');
                 return;
             }
             const data = await res.json();
+            console.log('Save response:', data);
             this.showNotification(isUpdating ? 'Simulasi diperbarui' : 'Simulasi disimpan', 'success');
-            this.activeSimulationId = isUpdating ? this.activeSimulationId : (data.data?.id || '');
+
+            // Keep the same ID if updating, otherwise use new ID from response
+            if (!isUpdating && data.data?.id) {
+                this.activeSimulationId = data.data.id;
+                console.log('New simulation created with ID:', this.activeSimulationId);
+            } else {
+                console.log('Simulation updated, keeping ID:', this.activeSimulationId);
+            }
+
             await this.refreshSavedSimulations();
         },
 
@@ -519,6 +537,11 @@ window.simulationApp = function simulationApp() {
                 // Set active simulation id and current name for editing
                 this.activeSimulationId = sim.id;
                 this.saveName = sim.name || '';
+                console.log('=== LOAD SIMULATION DEBUG ===');
+                console.log('Loaded simulation ID:', this.activeSimulationId);
+                console.log('Loaded simulation name:', this.saveName);
+                console.log('Is owner:', sim.is_owner);
+                console.log('Creator:', sim.user_name);
             } catch (error) {
                 console.error('Error loading simulation:', error);
                 this.showNotification('Terjadi kesalahan saat memuat simulasi', 'warning');

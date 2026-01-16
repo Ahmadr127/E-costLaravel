@@ -221,15 +221,14 @@ class SimulationController extends Controller
     }
 
     /**
-     * List simulations for current user.
+     * List simulations for all users (shared access).
      */
     public function list(Request $request): JsonResponse
     {
-        $simulations = Simulation::with(['items.layanan.kategori'])
-            ->where('user_id', Auth::id())
+        $simulations = Simulation::with(['items.layanan.kategori', 'user'])
             ->orderByDesc('id')
             ->limit(50)
-            ->get(['id', 'name', 'grand_total', 'items_count', 'created_at', 'updated_at']);
+            ->get(['id', 'user_id', 'name', 'grand_total', 'items_count', 'created_at', 'updated_at']);
 
         return response()->json([
             'success' => true,
@@ -256,6 +255,9 @@ class SimulationController extends Controller
 
                 return [
                     'id' => $sim->id,
+                    'user_id' => $sim->user_id,
+                    'user_name' => optional($sim->user)->name ?? 'Unknown',
+                    'is_owner' => $sim->user_id == Auth::id(),
                     'name' => $sim->name,
                     'grand_total' => $sim->grand_total,
                     'items_count' => $sim->items_count,
@@ -272,15 +274,14 @@ class SimulationController extends Controller
     }
 
     /**
-     * List qty simulations for current user.
+     * List qty simulations for all users (shared access).
      */
     public function listQty(Request $request): JsonResponse
     {
-        $simulations = SimulationQty::with(['items.layanan.kategori'])
-            ->where('user_id', Auth::id())
+        $simulations = SimulationQty::with(['items.layanan.kategori', 'user'])
             ->orderByDesc('id')
             ->limit(50)
-            ->get(['id', 'name', 'grand_total', 'items_count', 'created_at', 'updated_at']);
+            ->get(['id', 'user_id', 'name', 'grand_total', 'items_count', 'created_at', 'updated_at']);
 
         return response()->json([
             'success' => true,
@@ -297,6 +298,9 @@ class SimulationController extends Controller
                 }
                 return [
                     'id' => $sim->id,
+                    'user_id' => $sim->user_id,
+                    'user_name' => optional($sim->user)->name ?? 'Unknown',
+                    'is_owner' => $sim->user_id == Auth::id(),
                     'name' => $sim->name,
                     'grand_total' => $sim->grand_total,
                     'items_count' => $sim->items_count,
@@ -443,51 +447,51 @@ class SimulationController extends Controller
     }
 
     public function showQty($id): JsonResponse
-    {
-        $simulation = SimulationQty::find($id);
-        if (!$simulation) {
-            return response()->json(['success' => false, 'message' => 'Simulasi Qty tidak ditemukan'], 404);
-        }
-        if ($simulation->user_id != Auth::id()) abort(403);
-
-        $simulation->load(['items.layanan.kategori']);
-        $data = [
-            'id' => $simulation->id,
-            'user_id' => $simulation->user_id,
-            'tier_preset_id' => $simulation->tier_preset_id,
-            'default_margin_percent' => $simulation->default_margin_percent,
-            'simulation_quantity' => $simulation->simulation_quantity,
-            'simulation_margin_percent' => $simulation->simulation_margin_percent,
-            'total_unit_cost' => $simulation->total_unit_cost,
-            'total_margin_value' => $simulation->total_margin_value,
-            'name' => $simulation->name,
-            'notes' => $simulation->notes,
-            'sum_unit_cost' => $simulation->sum_unit_cost,
-            'sum_tarif_master' => $simulation->sum_tarif_master,
-            'grand_total' => $simulation->grand_total,
-            'items_count' => $simulation->items_count,
-            'created_at' => $simulation->created_at,
-            'updated_at' => $simulation->updated_at,
-            'items' => $simulation->items->map(function ($item) {
-                return [
-                    'layanan_id' => $item->layanan_id,
-                    'kode' => $item->kode,
-                    'jenis_pemeriksaan' => $item->jenis_pemeriksaan,
-                    'tarif_master' => $item->tarif_master,
-                    'unit_cost' => $item->unit_cost,
-                    'kategori_id' => optional($item->layanan)->kategori_id,
-                    'kategori_nama' => optional(optional($item->layanan)->kategori)->nama_kategori,
-                ];
-            }),
-        ];
-        return response()->json(['success' => true, 'data' => $data]);
+{
+    $simulation = SimulationQty::with(['items.layanan.kategori', 'user'])->find($id);
+    if (!$simulation) {
+        return response()->json(['success' => false, 'message' => 'Simulasi Qty tidak ditemukan'], 404);
     }
+    // No authorization check - all users can view any qty simulation
 
+    $data = [
+        'id' => $simulation->id,
+        'user_id' => $simulation->user_id,
+        'user_name' => optional($simulation->user)->name ?? 'Unknown',
+        'is_owner' => $simulation->user_id == Auth::id(),
+        'tier_preset_id' => $simulation->tier_preset_id,
+        'default_margin_percent' => $simulation->default_margin_percent,
+        'simulation_quantity' => $simulation->simulation_quantity,
+        'simulation_margin_percent' => $simulation->simulation_margin_percent,
+        'total_unit_cost' => $simulation->total_unit_cost,
+        'total_margin_value' => $simulation->total_margin_value,
+        'name' => $simulation->name,
+        'notes' => $simulation->notes,
+        'sum_unit_cost' => $simulation->sum_unit_cost,
+        'sum_tarif_master' => $simulation->sum_tarif_master,
+        'grand_total' => $simulation->grand_total,
+        'items_count' => $simulation->items_count,
+        'created_at' => $simulation->created_at,
+        'updated_at' => $simulation->updated_at,
+        'items' => $simulation->items->map(function ($item) {
+            return [
+                'layanan_id' => $item->layanan_id,
+                'kode' => $item->kode,
+                'jenis_pemeriksaan' => $item->jenis_pemeriksaan,
+                'tarif_master' => $item->tarif_master,
+                'unit_cost' => $item->unit_cost,
+                'kategori_id' => optional($item->layanan)->kategori_id,
+                'kategori_nama' => optional(optional($item->layanan)->kategori)->nama_kategori,
+            ];
+        }),
+    ];
+    return response()->json(['success' => true, 'data' => $data]);
+}
     public function updateQty(Request $request, $id): JsonResponse
     {
         $simulation = SimulationQty::find($id);
         if (!$simulation) return response()->json(['success' => false, 'message' => 'Simulasi Qty tidak ditemukan'], 404);
-        if ($simulation->user_id != Auth::id()) abort(403);
+        // No authorization check - all users can edit any qty simulation
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -543,72 +547,72 @@ class SimulationController extends Controller
     {
         $simulation = SimulationQty::find($id);
         if (!$simulation) return response()->json(['success' => false, 'message' => 'Simulasi Qty tidak ditemukan'], 404);
-        if ($simulation->user_id != Auth::id()) abort(403);
+        // No authorization check - all users can delete any qty simulation
         $simulation->delete();
         return response()->json(['success' => true, 'message' => 'Qty simulation deleted']);
     }
 
     /**
-     * Show a simulation with items.
-     */
-    public function show($id): JsonResponse
-    {
-        \Log::info('Simulation show called with ID: ' . $id);
-        \Log::info('Current user ID: ' . Auth::id());
-        
-        $simulation = Simulation::find($id);
-        
-        if (!$simulation) {
-            \Log::warning('Simulation not found with ID: ' . $id);
-            return response()->json([
-                'success' => false,
-                'message' => 'Simulasi tidak ditemukan'
-            ], 404);
-        }
-        
-        \Log::info('Simulation found: ' . $simulation->id . ', User ID: ' . $simulation->user_id);
-        
-        $this->authorizeOwner($simulation);
-
-        $simulation->load(['items.layanan.kategori']);
-
-        $data = [
-            'id' => $simulation->id,
-            'user_id' => $simulation->user_id,
-            'name' => $simulation->name,
-            'notes' => $simulation->notes,
-            'sum_unit_cost' => $simulation->sum_unit_cost,
-            'sum_tarif_master' => $simulation->sum_tarif_master,
-            'grand_total' => $simulation->grand_total,
-            'items_count' => $simulation->items_count,
-            'created_at' => $simulation->created_at,
-            'updated_at' => $simulation->updated_at,
-            'items' => $simulation->items->map(function ($item) {
-                return [
-                    'layanan_id' => $item->layanan_id,
-                    'quantity' => $item->quantity ?? 1,
-                    'kode' => $item->kode,
-                    'jenis_pemeriksaan' => $item->jenis_pemeriksaan,
-                    'tarif_master' => $item->tarif_master,
-                    'unit_cost' => $item->unit_cost,
-                    'margin_value' => $item->margin_value,
-                    'margin_percentage' => $item->margin_percentage,
-                    'total_tarif' => $item->total_tarif,
-                    // computed subtotal on client from qty * total_tarif
-                    'kategori_id' => optional($item->layanan)->kategori_id,
-                    'kategori_nama' => optional(optional($item->layanan)->kategori)->nama_kategori,
-                ];
-            }),
-        ];
-
+ * Show a simulation with items (shared access - all users can view).
+ */
+public function show($id): JsonResponse
+{
+    \Log::info('Simulation show called with ID: ' . $id);
+    \Log::info('Current user ID: ' . Auth::id());
+    
+    $simulation = Simulation::with(['items.layanan.kategori', 'user'])->find($id);
+    
+    if (!$simulation) {
+        \Log::warning('Simulation not found with ID: ' . $id);
         return response()->json([
-            'success' => true,
-            'data' => $data,
-        ]);
+            'success' => false,
+            'message' => 'Simulasi tidak ditemukan'
+        ], 404);
     }
+    
+    \Log::info('Simulation found: ' . $simulation->id . ', User ID: ' . $simulation->user_id);
+    
+    // No authorization check - all users can view any simulation
+
+    $data = [
+        'id' => $simulation->id,
+        'user_id' => $simulation->user_id,
+        'user_name' => optional($simulation->user)->name ?? 'Unknown',
+        'is_owner' => $simulation->user_id == Auth::id(),
+        'name' => $simulation->name,
+        'notes' => $simulation->notes,
+        'sum_unit_cost' => $simulation->sum_unit_cost,
+        'sum_tarif_master' => $simulation->sum_tarif_master,
+        'grand_total' => $simulation->grand_total,
+        'items_count' => $simulation->items_count,
+        'created_at' => $simulation->created_at,
+        'updated_at' => $simulation->updated_at,
+        'items' => $simulation->items->map(function ($item) {
+            return [
+                'layanan_id' => $item->layanan_id,
+                'quantity' => $item->quantity ?? 1,
+                'kode' => $item->kode,
+                'jenis_pemeriksaan' => $item->jenis_pemeriksaan,
+                'tarif_master' => $item->tarif_master,
+                'unit_cost' => $item->unit_cost,
+                'margin_value' => $item->margin_value,
+                'margin_percentage' => $item->margin_percentage,
+                'total_tarif' => $item->total_tarif,
+                // computed subtotal on client from qty * total_tarif
+                'kategori_id' => optional($item->layanan)->kategori_id,
+                'kategori_nama' => optional(optional($item->layanan)->kategori)->nama_kategori,
+            ];
+        }),
+    ];
+
+    return response()->json([
+        'success' => true,
+        'data' => $data,
+    ]);
+}
 
     /**
-     * Update a simulation (rename, notes, items replace)
+     * Update a simulation (shared access - all users can edit)
      */
     public function update(Request $request, $id): JsonResponse
     {
@@ -621,7 +625,7 @@ class SimulationController extends Controller
             ], 404);
         }
         
-        $this->authorizeOwner($simulation);
+        // No authorization check - all users can edit any simulation
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -665,8 +669,6 @@ class SimulationController extends Controller
                 'margin_percentage' => (int) round($item['margin_percentage']),
                 'total_tarif' => (int) $item['total_tarif'],
             ]);
-
-            // No kategori update required during simulation update
         }
 
         return response()->json([
@@ -676,7 +678,7 @@ class SimulationController extends Controller
     }
 
     /**
-     * Delete a simulation
+     * Delete a simulation (shared access - all users can delete)
      */
     public function destroy($id): JsonResponse
     {
@@ -689,7 +691,7 @@ class SimulationController extends Controller
             ], 404);
         }
         
-        $this->authorizeOwner($simulation);
+        // No authorization check - all users can delete any simulation
         $simulation->delete();
 
         return response()->json([
@@ -697,23 +699,4 @@ class SimulationController extends Controller
             'message' => 'Simulation deleted',
         ]);
     }
-
-    private function authorizeOwner(Simulation $simulation): void
-    {
-        $simulationUserId = $simulation->user_id;
-        $currentUserId = Auth::id();
-        
-        \Log::info('Authorizing owner - Simulation user ID: ' . $simulationUserId . ' (type: ' . gettype($simulationUserId) . ')');
-        \Log::info('Current user ID: ' . $currentUserId . ' (type: ' . gettype($currentUserId) . ')');
-        \Log::info('Strict comparison (===): ' . ($simulationUserId === $currentUserId ? 'true' : 'false'));
-        \Log::info('Loose comparison (==): ' . ($simulationUserId == $currentUserId ? 'true' : 'false'));
-        
-        if ($simulationUserId != $currentUserId) {
-            \Log::warning('Authorization failed - User does not own simulation');
-            abort(403, 'Unauthorized');
-        }
-        
-        \Log::info('Authorization successful');
-    }
 }
-
